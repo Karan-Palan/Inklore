@@ -44,14 +44,16 @@ struct SearchView: View {
           if query.isEmpty && results.isEmpty {
             emptyPrompt
           } else if isSearching {
-            ProgressView("Searching free libraries…")
-              .frame(maxWidth: .infinity, maxHeight: .infinity)
+            searchLoadingState
           } else if let errorText {
             errorState(errorText)
           } else if results.isEmpty {
-            ContentUnavailableView.search(text: query)
+            noResultsState
           } else {
-            resultsList
+            VStack(spacing: 0) {
+              resultsSummary
+              resultsList
+            }
           }
         }
       }
@@ -218,41 +220,82 @@ struct SearchView: View {
 
   private var emptyPrompt: some View {
     ScrollView {
-      VStack(spacing: Theme.lg) {
-        Image(systemName: "books.vertical")
-          .font(.system(size: 52))
-          .foregroundStyle(Theme.accent)
-        Text("Find your next read")
-          .font(.title2.weight(.bold))
-          .foregroundStyle(Theme.ink)
-        Text(
-          "Search real books from Project Gutenberg and the Internet Archive, and download them straight to your library."
-        )
-        .font(.subheadline)
-        .multilineTextAlignment(.center)
-        .foregroundStyle(Theme.inkSoft)
-        .padding(.horizontal, Theme.xl)
+      VStack(alignment: .leading, spacing: Theme.xl) {
+        VStack(alignment: .leading, spacing: Theme.sm) {
+          HStack(spacing: Theme.sm) {
+            Image(systemName: "books.vertical.fill")
+              .font(.title2)
+              .foregroundStyle(Theme.accent)
+              .frame(width: 44, height: 44)
+              .background(Theme.accent.opacity(0.12), in: Circle())
+            Text("FREE & LEGAL LIBRARIES")
+              .font(.caption.weight(.bold))
+              .tracking(1.1)
+              .foregroundStyle(Theme.inkFaint)
+          }
+          Text("Find your next read")
+            .font(.system(size: 30, weight: .bold, design: .serif))
+            .foregroundStyle(Theme.ink)
+          Text(
+            "Search public-domain titles from Project Gutenberg and the Internet Archive. Every result is ready to save to your library."
+          )
+          .font(.subheadline)
+          .foregroundStyle(Theme.inkSoft)
+          .fixedSize(horizontal: false, vertical: true)
+        }
 
-        recommendationRail(
-          title: "RECOMMENDED IN \(recGenre.name.uppercased())",
-          tint: recGenre.tint, picks: recPicks,
-          trailing: {
-            Button {
-              refreshRecommendations()
-            } label: {
-              Image(systemName: "arrow.clockwise")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(Theme.accent)
-            }
-          })
+        HStack(spacing: Theme.sm) {
+          libraryPromise(icon: "doc.richtext", title: "EPUB", detail: "Gutenberg")
+          libraryPromise(icon: "doc.plaintext", title: "Text", detail: "Internet Archive")
+        }
+
+        VStack(alignment: .leading, spacing: Theme.md) {
+          Text("CURATED FOR YOU")
+            .font(.caption.weight(.bold))
+            .tracking(1)
+            .foregroundStyle(Theme.inkFaint)
+
+          recommendationRail(
+            title: "IN \(recGenre.name.uppercased())",
+            tint: recGenre.tint, picks: recPicks,
+            trailing: {
+              Button {
+                refreshRecommendations()
+              } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(Theme.accent)
+              }
+            })
+        }
 
         ForEach(relatedPicks, id: \.0.id) { related, picks in
           recommendationRail(
-            title: "BECAUSE YOU LIKE \(recGenre.name.uppercased()) · \(related.name.uppercased())",
+            title: "EXPLORE \(related.name.uppercased())",
             tint: related.tint, picks: picks, trailing: { EmptyView() })
         }
       }
-      .padding()
+      .padding(Theme.lg)
+    }
+  }
+
+  private func libraryPromise(icon: String, title: String, detail: String) -> some View {
+    HStack(spacing: Theme.sm) {
+      Image(systemName: icon)
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.accent)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(title).font(.caption.weight(.bold)).foregroundStyle(Theme.ink)
+        Text(detail).font(.caption2).foregroundStyle(Theme.inkSoft)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(Theme.md)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
+        .strokeBorder(Theme.hairline)
     }
   }
 
@@ -326,13 +369,84 @@ struct SearchView: View {
 
   private func errorState(_ message: String) -> some View {
     ContentUnavailableView {
-      Label("Couldn't search", systemImage: "wifi.exclamationmark")
+      Label("No titles found", systemImage: "book.closed")
     } description: {
       Text(message)
     } actions: {
-      Button("Try again") { Task { await runSearch() } }
+      if filters.activeCount > 0 {
+        Button("Clear filters") {
+          filters = SearchFilters()
+          Task { await runSearch() }
+        }
         .buttonStyle(.borderedProminent)
         .tint(Theme.accent)
+      } else {
+        Button("Browse recommendations") { clearSearch() }
+          .buttonStyle(.bordered)
+          .tint(Theme.accent)
+      }
+    }
+  }
+
+  private var searchLoadingState: some View {
+    VStack(spacing: Theme.lg) {
+      ZStack {
+        Circle().fill(Theme.accent.opacity(0.12)).frame(width: 68, height: 68)
+        ProgressView().tint(Theme.accent)
+      }
+      VStack(spacing: Theme.xs) {
+        Text("Searching the stacks")
+          .font(.headline)
+          .foregroundStyle(Theme.ink)
+        Text("Checking Project Gutenberg and Internet Archive")
+          .font(.subheadline)
+          .foregroundStyle(Theme.inkSoft)
+      }
+    }
+    .multilineTextAlignment(.center)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding(Theme.xl)
+  }
+
+  private var noResultsState: some View {
+    ContentUnavailableView {
+      Label("No titles found", systemImage: "book.closed")
+    } description: {
+      Text("Try a broader title, an author's surname, or remove a filter.")
+    } actions: {
+      if filters.activeCount > 0 {
+        Button("Clear filters") {
+          filters = SearchFilters()
+          Task { await runSearch() }
+        }
+        .buttonStyle(.bordered)
+        .tint(Theme.accent)
+      }
+    }
+  }
+
+  private var resultsSummary: some View {
+    HStack(spacing: Theme.sm) {
+      Text("\(results.count) \(results.count == 1 ? "title" : "titles")")
+        .font(.subheadline.weight(.bold))
+        .foregroundStyle(Theme.ink)
+      Text("·")
+        .foregroundStyle(Theme.inkFaint)
+      Text(searchScopeLabel)
+        .font(.caption)
+        .foregroundStyle(Theme.inkSoft)
+      Spacer()
+    }
+    .padding(.horizontal, Theme.lg)
+    .padding(.vertical, Theme.md)
+    .background(Theme.surfaceAlt.opacity(0.6))
+  }
+
+  private var searchScopeLabel: String {
+    switch filters.source {
+    case .all: return "Gutenberg + Internet Archive"
+    case .gutenberg: return "Project Gutenberg"
+    case .internetArchive: return "Internet Archive"
     }
   }
 
@@ -354,16 +468,21 @@ struct SearchView: View {
     return HStack(alignment: .top, spacing: Theme.md) {
       cover(for: result)
 
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 6) {
         Text(result.title)
-          .font(.subheadline.weight(.semibold))
+          .font(.body.weight(.semibold))
           .foregroundStyle(Theme.ink)
           .lineLimit(2)
         Text(result.author)
           .font(.caption)
           .foregroundStyle(Theme.inkSoft)
           .lineLimit(1)
-        sourceBadge(result.source)
+        HStack(spacing: Theme.xs) {
+          sourceBadge(result.source)
+          Text(result.source.deliversEpub ? "Formatted edition" : "Plain-text edition")
+            .font(.caption2)
+            .foregroundStyle(Theme.inkFaint)
+        }
         if !result.detail.isEmpty {
           Text(result.detail)
             .font(.caption2)
@@ -381,9 +500,9 @@ struct SearchView: View {
               readerBook = book
             }
           } label: {
-            VStack(spacing: 3) {
+            VStack(spacing: 4) {
               Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
+                .font(.title3)
                 .foregroundStyle(Theme.accent)
               Text("Read")
                 .font(.system(size: 10, weight: .bold))
@@ -392,17 +511,28 @@ struct SearchView: View {
           }
           .buttonStyle(.plain)
         } else if isDownloading {
-          ProgressView()
+          VStack(spacing: 5) {
+            ProgressView().tint(Theme.accent)
+            Text("Saving")
+              .font(.system(size: 10, weight: .bold))
+              .foregroundStyle(Theme.inkSoft)
+          }
         } else {
           Button {
             Task { await download(result) }
           } label: {
-            Image(systemName: "arrow.down.circle")
-              .font(.title2)
-              .foregroundStyle(Theme.accent)
+            VStack(spacing: 4) {
+              Image(systemName: "arrow.down.circle.fill")
+                .font(.title3)
+              Text(result.source.deliversEpub ? "Get EPUB" : "Get text")
+                .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(Theme.accent)
           }
+          .accessibilityLabel("Download \(result.title) as \(result.source.deliversEpub ? "EPUB" : "text")")
         }
       }
+      .frame(width: 58)
     }
     .padding(.horizontal, Theme.lg)
     .padding(.vertical, Theme.md)
@@ -441,7 +571,7 @@ struct SearchView: View {
     HStack(spacing: 4) {
       Image(systemName: source.deliversEpub ? "doc.richtext" : "doc.plaintext")
         .font(.system(size: 9, weight: .bold))
-      Text(source.deliversEpub ? "EPUB · \(source.rawValue)" : "Text · \(source.rawValue)")
+      Text(source.deliversEpub ? "EPUB · \(source.shortName)" : "TEXT · \(source.shortName)")
         .font(.system(size: 10, weight: .semibold))
     }
     .foregroundStyle(source.badgeColor)

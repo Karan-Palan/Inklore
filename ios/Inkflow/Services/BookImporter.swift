@@ -13,7 +13,7 @@ enum BookImporter {
       case .unreadable:
         return "We couldn't read that document. It may be damaged or password protected."
       case .unsupported:
-        return "ReadSync supports PDF, EPUB, DOCX, RTF, Markdown, plain text, and web articles."
+        return "Inkflow supports PDF, EPUB, DOCX, RTF, Markdown, plain text, and web articles."
       case .badDownload:
         return "We couldn't download that link. Check that it is public and try again."
       case .emptyText:
@@ -25,6 +25,30 @@ enum BookImporter {
   }
 
   private enum Kind { case epub, pdf, docx, rtf, text, html }
+
+  /// Link resolution is performed by the API for articles. Direct document
+  /// links are validated there and then downloaded locally, preserving the
+  /// native PDF/EPUB reader rather than proxying a book through the backend.
+  private struct LinkResolution: Decodable, Sendable {
+    enum Kind: String, Decodable, Sendable { case article, file }
+
+    let kind: Kind
+    let title: String
+    let author: String?
+    let text: String?
+    let sourceName: String
+    let sourceURL: String
+    let contentType: String?
+
+    enum CodingKeys: String, CodingKey {
+      case kind, title, author, text
+      case sourceName = "source_name"
+      case sourceURL = "source_url"
+      case contentType = "content_type"
+    }
+  }
+
+  private struct LinkRequest: Encodable, Sendable { let url: String }
 
   private static let maximumImportBytes = 80 * 1024 * 1024
   private static let maximumStoredTextLength = 2_000_000
@@ -55,7 +79,7 @@ enum BookImporter {
   static func importRemote(from url: URL, into context: ModelContext) async throws -> Book {
     var request = URLRequest(url: url)
     request.timeoutInterval = 90
-    request.setValue("ReadSync/1.0", forHTTPHeaderField: "User-Agent")
+    request.setValue("Inkflow/1.0", forHTTPHeaderField: "User-Agent")
     let data: Data
     let response: URLResponse
     do {
@@ -90,12 +114,49 @@ enum BookImporter {
       mimeHint: response.mimeType, sourceLabel: host ?? "Web", into: context)
   }
 
+  /// Imports an arbitrary public URL. The backend extracts ordinary articles
+  /// (including public X status URLs) into clean text. Validated PDF/EPUB and
+  /// other document URLs continue through the device-local import path.
+  @MainActor @discardableResult
+  static func importLink(from url: URL, into context: ModelContext) async throws -> Book {
+    let resolution: LinkResolution
+    do {
+      resolution = try await BackendClient().send(
+        LinkResolution.self,
+        path: "/api/v1/link-import",
+        body: LinkRequest(url: url.absoluteString))
+    } catch {
+      throw ImportError.badDownload
+    }
+
+    switch resolution.kind {
+    case .file:
+      guard let remoteURL = URL(string: resolution.sourceURL) else {
+        throw ImportError.badDownload
+      }
+      return try await importRemote(from: remoteURL, into: context)
+
+    case .article:
+      guard let text = resolution.text,
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      else { throw ImportError.emptyText }
+      let prepared = try await Task.detached(priority: .utility) {
+        try prepareText(
+          title: cleanedTitle(resolution.title),
+          author: nonBlank(resolution.author) ?? "Web",
+          text: text,
+          description: "Imported article from \(resolution.sourceName).")
+      }.value
+      return try persist(prepared, sourceLabel: resolution.sourceName, into: context)
+    }
+  }
+
   @MainActor @discardableResult
   static func importText(title: String, text: String, into context: ModelContext) async throws -> Book {
     let prepared = try await Task.detached(priority: .utility) {
       try prepareText(
         title: cleanedTitle(title), author: "My writing", text: text,
-        description: "Text added in ReadSync.")
+        description: "Text added in Inkflow.")
     }.value
     return try persist(prepared, sourceLabel: "Pasted text", into: context)
   }

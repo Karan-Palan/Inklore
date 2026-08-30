@@ -148,19 +148,156 @@ final class Book {
   /// utf16 length, matching the offsets used for pagination and highlights.
   var bodyNSLength: Int { (bodyText as NSString).length }
 
-  var progress: Double {
+  /// The text offset is the canonical shared position for every consumption
+  /// mode. EPUB/PDF locators are retained so their native renderers can reopen
+  /// in the right place, but are always derived from (or mirrored into) this
+  /// offset at a handoff. This avoids one stale view overwriting newer audio
+  /// progress when it disappears.
+  var canonicalCharacterOffset: Int {
+    let length = bodyNSLength
+    guard length > 0 else { return 0 }
+    if charOffset > 0 || nativeProgress == 0 { return min(length, max(0, charOffset)) }
+    // EPUB/PDF books saved by older app versions did not mirror native reading
+    // positions into charOffset. Use that locator once as a migration fallback.
+    return min(length, max(0, Int(nativeProgress * Double(length))))
+  }
+
+  /// Normalized progress for a resume/handoff. New positions use
+  /// `charOffset`; `nativeProgress` only keeps existing persisted EPUB/PDF
+  /// locations valid until the book is next opened.
+  var canonicalProgress: Double {
+    let length = bodyNSLength
+    guard length > 0 else { return nativeProgress }
+    return min(1, max(0, Double(canonicalCharacterOffset) / Double(length)))
+  }
+
+  private var nativeProgress: Double {
     if isPdf {
       guard pdfPageCount > 0 else { return 0 }
-      return min(1, Double(pdfPageIndex + 1) / Double(pdfPageCount))
+      // A page index represents the beginning of that page. This is the same
+      // convention PlayerView uses when mapping an audio offset back to PDF.
+      return min(1, max(0, Double(pdfPageIndex) / Double(pdfPageCount)))
     }
     if isEpub {
       guard spineCount > 0 else { return 0 }
-      let perChapter = 1.0 / Double(spineCount)
-      return min(1, (Double(spineIndex) + min(max(chapterScroll, 0), 1)) * perChapter)
+      return min(
+        1,
+        max(0, (Double(spineIndex) + min(max(chapterScroll, 0), 1)) / Double(spineCount)))
     }
-    let len = bodyNSLength
-    guard len > 0 else { return 0 }
-    return min(1, Double(charOffset) / Double(len))
+    return 0
+  }
+
+  var progress: Double {
+    canonicalProgress
+  }
+
+  /// Brings legacy EPUB/PDF records into the shared offset convention without
+  /// changing a current, non-zero text/audio position.
+  func restoreCanonicalCharacterOffset() {
+    guard charOffset == 0, bodyNSLength > 0, nativeProgress > 0 else { return }
+    charOffset = canonicalCharacterOffset
+  }
+
+  /// Records text/audio progress. A mode handoff uses the monotonic default;
+  /// explicit reader navigation and audio scrubbing opt into backwards moves.
+  @discardableResult
+  func updateCharacterOffset(_ offset: Int, allowingBackward: Bool = false) -> Bool {
+    let bounded = min(max(0, offset), bodyNSLength)
+    guard allowingBackward || bounded >= canonicalCharacterOffset else { return false }
+    charOffset = bounded
+    if bodyNSLength > 0 {
+      if bounded >= bodyNSLength {
+        isFinished = true
+      } else if allowingBackward {
+        // A deliberate scrub/page jump away from the end reopens the book.
+        isFinished = false
+      }
+    }
+    return true
+  }
+
+  /// Records an EPUB position and its corresponding shared text position.
+  /// Passing `characterOffset` preserves the precise audio offset while still
+  /// updating the native chapter/scroll locator.
+  @discardableResult
+  func updateEpubPosition(
+    spineIndex index: Int,
+    scroll: Double,
+    spineCount count: Int,
+    characterOffset: Int? = nil,
+    allowingBackward: Bool = false
+  ) -> Bool {
+    let boundedCount = max(0, count)
+    guard boundedCount > 0 else { return false }
+    let boundedIndex = min(max(0, index), boundedCount - 1)
+    let boundedScroll = min(max(0, scroll), 1)
+    let inferredOffset = Int(
+      ((Double(boundedIndex) + boundedScroll) / Double(boundedCount))
+        * Double(max(bodyNSLength, 0)))
+    let targetOffset = min(max(0, characterOffset ?? inferredOffset), bodyNSLength)
+    guard allowingBackward || targetOffset >= canonicalCharacterOffset else { return false }
+
+    self.spineCount = boundedCount
+    self.spineIndex = boundedIndex
+    self.chapterScroll = boundedScroll
+    self.charOffset = targetOffset
+    if boundedIndex == boundedCount - 1, boundedScroll > 0.92 {
+      isFinished = true
+    } else if allowingBackward {
+      // EPUB considers the final chapter's last 8% complete; an explicit
+      // backwards scroll must clear that state as well as the text offset.
+      isFinished = false
+    }
+    return true
+  }
+
+  /// Records a PDF page and its shared text position. PDF has no scroll
+  /// fraction, so a page represents its leading edge (the same mapping used
+  /// when audio resumes into the PDF reader).
+  @discardableResult
+  func updatePdfPosition(
+    pageIndex index: Int,
+    pageCount count: Int,
+    characterOffset: Int? = nil,
+    allowingBackward: Bool = false
+  ) -> Bool {
+    let boundedCount = max(0, count)
+    guard boundedCount > 0 else { return false }
+    let boundedIndex = min(max(0, index), boundedCount - 1)
+    let inferredOffset = boundedIndex == boundedCount - 1
+      ? bodyNSLength
+      : Int((Double(boundedIndex) / Double(boundedCount)) * Double(max(bodyNSLength, 0)))
+    let targetOffset = min(max(0, characterOffset ?? inferredOffset), bodyNSLength)
+    guard allowingBackward || targetOffset >= canonicalCharacterOffset else { return false }
+
+    self.pdfPageCount = boundedCount
+    self.pdfPageIndex = boundedIndex
+    self.charOffset = targetOffset
+    if bodyNSLength > 0 {
+      if targetOffset >= bodyNSLength {
+        isFinished = true
+      } else if allowingBackward {
+        isFinished = false
+      }
+    }
+    return true
+  }
+
+  /// The native EPUB reader should use this locator whenever the player has
+  /// advanced the shared text offset.
+  func epubLocatorForCanonicalPosition(spineCount count: Int) -> (index: Int, scroll: Double) {
+    guard count > 0 else { return (0, 0) }
+    let raw = min(Double(count) - 0.000_001, canonicalProgress * Double(count))
+    let index = min(count - 1, max(0, Int(raw)))
+    return (index, raw - Double(index))
+  }
+
+  /// The native PDF reader should use this locator whenever the player has
+  /// advanced the shared text offset.
+  func pdfPageIndexForCanonicalPosition(pageCount count: Int) -> Int {
+    guard count > 0 else { return 0 }
+    if isFinished, canonicalProgress >= 0.999 { return count - 1 }
+    return min(count - 1, max(0, Int(canonicalProgress * Double(count))))
   }
 
   var isStarted: Bool {
