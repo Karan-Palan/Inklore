@@ -1,4 +1,4 @@
-"""Apply ReadSync SQL migrations to the configured Neon database in order."""
+"""Apply Inkflow SQL migrations to the configured Neon database in order."""
 
 from __future__ import annotations
 

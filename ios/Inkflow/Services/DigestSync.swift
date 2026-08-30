@@ -1,155 +1,159 @@
 import Foundation
 import SwiftData
 
-/// Drives the daily-digest backend. All database writes happen server-side
-/// (the managed data REST API is read-only for these tables), so this type just
-/// posts the user's current local highlights/notes + active books to the
-/// backend runtime, which persists them in Neon and sends the email.
+/// Syncs a compact, account-free mirror of local reading data for daily and
+/// weekly recaps. A stable installation header scopes the data until sign-in is
+/// introduced; no local book text or provider credentials leave the device.
 @MainActor
 struct DigestSync {
   enum SyncError: LocalizedError {
-    case notConfigured
     case request(String)
 
     var errorDescription: String? {
       switch self {
-      case .notConfigured:
-        return "Sign in and wait for the backend to finish setting up to enable the daily email."
-      case .request(let message):
-        return message
+      case .request(let message): return message
       }
     }
   }
 
-  private static let backend = BackendClient()
-  private static let data = TenxData()
-
-  // MARK: - Preferences
-
-  /// Save the recipient's email + enabled flag for the signed-in user, then read
-  /// the persisted row back through the managed Data API to confirm the
-  /// server-side write landed (the backend runtime owns the write; the app
-  /// verifies it via owner-scoped RLS read).
-  @discardableResult
-  static func savePreferences(
-    email: String, enabled: Bool, ownerID: String, accessToken: String
-  ) async throws -> DigestSubscriberRow? {
-    try await call(
-      path: "/api/v1/digest/preferences",
-      body: PreferencesBody(email: email, enabled: enabled),
-      accessToken: accessToken)
-    return try await fetchSubscriber(ownerID: ownerID, accessToken: accessToken)
+  struct Preferences: Decodable, Sendable {
+    let email: String
+    let daily_enabled: Bool
+    let weekly_enabled: Bool
+    let timezone: String
+    let last_daily_sent_at: String?
+    let last_weekly_sent_at: String?
   }
 
-  /// Read the signed-in user's persisted digest subscription from Neon via the
-  /// managed Data API. Returns nil when no row exists yet.
-  static func fetchSubscriber(ownerID: String, accessToken: String) async throws
-    -> DigestSubscriberRow?
-  {
-    guard BackendConfig.isDataReady else { return nil }
+  private static let backend = BackendClient()
+
+  static func fetchPreferences() async throws -> Preferences? {
     do {
-      let raw = try await data.select(
-        table: "digest_subscribers",
-        queryItems: [
-          URLQueryItem(name: "owner_id", value: "eq.\(ownerID)"),
-          URLQueryItem(name: "select", value: "owner_id,email,enabled,last_sent_at"),
-          URLQueryItem(name: "limit", value: "1"),
-        ],
-        accessToken: accessToken)
-      let rows = try JSONDecoder().decode([DigestSubscriberRow].self, from: raw)
-      return rows.first
+      return try await backend.get(
+        Preferences.self, path: "/api/v1/digest/preferences",
+        headers: InkflowInstallationIdentity.headers)
     } catch let error as TenxBackendError {
-      throw SyncError.request(error.errorDescription ?? "The request failed.")
-    } catch is DecodingError {
-      return nil
+      if case .requestFailed(let status, _) = error, status == 404 { return nil }
+      throw SyncError.request(error.errorDescription ?? "Could not load recap settings.")
     } catch {
-      throw SyncError.request(error.localizedDescription)
+      throw SyncError.request("Could not load recap settings.")
     }
   }
 
-  // MARK: - Send
-
-  /// Sync current local data to the backend and trigger an immediate send.
-  static func sendNow(
-    highlights: [Highlight], notes: [Note], books: [Book],
-    email: String, ownerID: String, accessToken: String
-  ) async throws {
-    let noteRows = makeNoteRows(highlights: highlights, notes: notes)
-    let bookRows = makeBookRows(books: books)
-    try await call(
-      path: "/api/v1/daily-digest",
-      body: DigestBody(
-        email: email, enabled: true, force: true, notes: noteRows, books: bookRows),
-      accessToken: accessToken)
+  static func savePreferences(
+    email: String,
+    dailyEnabled: Bool,
+    weeklyEnabled: Bool
+  ) async throws -> Preferences {
+    do {
+      return try await backend.send(
+        Preferences.self,
+        path: "/api/v1/digest/preferences",
+        body: PreferencesBody(
+          email: email.trimmingCharacters(in: .whitespacesAndNewlines),
+          daily_enabled: dailyEnabled, weekly_enabled: weeklyEnabled,
+          timezone: TimeZone.current.identifier),
+        headers: InkflowInstallationIdentity.headers)
+    } catch let error as TenxBackendError {
+      throw SyncError.request(error.errorDescription ?? "Could not save recap settings.")
+    } catch {
+      throw SyncError.request("Could not save recap settings.")
+    }
   }
 
-  // MARK: - Helpers
+  static func sync(
+    highlights: [Highlight], notes: [Note], books: [Book], sessions: [ReadingSession]
+  ) async throws {
+    do {
+      _ = try await backend.send(
+        path: "/api/v1/digest/sync",
+        body: SyncBody(
+          notes: makeNoteRows(highlights: highlights, notes: notes),
+          books: makeBookRows(books: books),
+          activity: makeActivityRows(sessions: sessions)),
+        headers: InkflowInstallationIdentity.headers)
+    } catch let error as TenxBackendError {
+      throw SyncError.request(error.errorDescription ?? "Could not sync your reading recap.")
+    } catch {
+      throw SyncError.request("Could not sync your reading recap.")
+    }
+  }
+
+  static func sendSample(kind: String) async throws {
+    do {
+      _ = try await backend.send(
+        path: "/api/v1/digest/send-sample",
+        body: EmptyBody(),
+        queryItems: [URLQueryItem(name: "kind", value: kind)],
+        headers: InkflowInstallationIdentity.headers)
+    } catch let error as TenxBackendError {
+      throw SyncError.request(error.errorDescription ?? "Could not send the sample recap.")
+    } catch {
+      throw SyncError.request("Could not send the sample recap.")
+    }
+  }
 
   private static func makeNoteRows(highlights: [Highlight], notes: [Note]) -> [DigestNoteRow] {
-    var rows: [DigestNoteRow] = []
-    for h in highlights {
-      rows.append(
-        DigestNoteRow(
-          id: h.id.uuidString, kind: "highlight",
-          book_title: h.book?.title ?? "", chapter: h.chapterTitle,
-          passage: h.text, body: "",
-          created_at: ISO8601DateFormatter().string(from: h.createdDate)))
+    let formatter = ISO8601DateFormatter()
+    var rows: [DigestNoteRow] = highlights.map { highlight in
+      DigestNoteRow(
+        id: highlight.id.uuidString, kind: "highlight", book_title: highlight.book?.title ?? "",
+        chapter: highlight.chapterTitle, passage: highlight.text, body: "",
+        created_at: formatter.string(from: highlight.createdDate))
     }
-    for n in notes {
-      rows.append(
-        DigestNoteRow(
-          id: n.id.uuidString, kind: "note",
-          book_title: n.book?.title ?? "", chapter: n.chapterTitle,
-          passage: n.passage, body: n.body,
-          created_at: ISO8601DateFormatter().string(from: n.createdDate)))
+    rows += notes.map { note in
+      DigestNoteRow(
+        id: note.id.uuidString, kind: "note", book_title: note.book?.title ?? "",
+        chapter: note.chapterTitle, passage: note.passage, body: note.body,
+        created_at: formatter.string(from: note.createdDate))
     }
     return rows
   }
 
   private static func makeBookRows(books: [Book]) -> [DigestBookRow] {
-    let active = books.filter { $0.isStarted && !$0.isFinished }
-    return active.prefix(20).map { book in
-      DigestBookRow(
+    let formatter = ISO8601DateFormatter()
+    return books.prefix(20).map { book in
+      let chapter = ChapterSummaryContent.section(for: book, offset: book.canonicalCharacterOffset)?.title ?? ""
+      return DigestBookRow(
         id: book.id.uuidString, title: book.title, author: book.author,
-        excerpt: String(book.bodyText.prefix(4000)))
+        excerpt: String(book.bodyText.prefix(4000)), is_active: book.isStarted && !book.isFinished,
+        progress: book.progress, current_chapter: chapter,
+        last_read_at: book.lastOpenedDate.map { formatter.string(from: $0) })
     }
   }
 
-  private static func call<T: Encodable>(path: String, body: T, accessToken: String) async throws {
-    guard BackendConfig.isAuthReady else { throw SyncError.notConfigured }
-    do {
-      _ = try await backend.send(path: path, body: body, accessToken: accessToken)
-    } catch let error as TenxBackendError {
-      throw SyncError.request(error.errorDescription ?? "The request failed.")
-    } catch {
-      throw SyncError.request(error.localizedDescription)
+  private static func makeActivityRows(sessions: [ReadingSession]) -> [DigestActivityRow] {
+    var buckets: [Date: (read: Int, listen: Int, pages: Int)] = [:]
+    let calendar = Calendar.current
+    for session in sessions {
+      let day = calendar.startOfDay(for: session.date)
+      var total = buckets[day] ?? (0, 0, 0)
+      if session.wasListening { total.listen += session.minutes } else { total.read += session.minutes }
+      total.pages += session.pagesRead
+      buckets[day] = total
+    }
+    let dayFormatter = ISO8601DateFormatter()
+    dayFormatter.formatOptions = [.withFullDate]
+    return buckets.keys.sorted().suffix(90).map { day in
+      let total = buckets[day] ?? (0, 0, 0)
+      return DigestActivityRow(
+        date: dayFormatter.string(from: day), read_minutes: total.read,
+        listen_minutes: total.listen, pages_read: total.pages)
     }
   }
 }
-
-// MARK: - Decoded rows
-
-/// One row from the managed `digest_subscribers` table (read via `TenxData`).
-struct DigestSubscriberRow: Decodable, Sendable {
-  let owner_id: String
-  let email: String
-  let enabled: Bool
-  let last_sent_at: String?
-}
-
-// MARK: - Request payloads
 
 private struct PreferencesBody: Encodable {
   let email: String
-  let enabled: Bool
+  let daily_enabled: Bool
+  let weekly_enabled: Bool
+  let timezone: String
 }
 
-private struct DigestBody: Encodable {
-  let email: String
-  let enabled: Bool
-  let force: Bool
+private struct SyncBody: Encodable {
   let notes: [DigestNoteRow]
   let books: [DigestBookRow]
+  let activity: [DigestActivityRow]
 }
 
 private struct DigestNoteRow: Encodable {
@@ -167,4 +171,17 @@ private struct DigestBookRow: Encodable {
   let title: String
   let author: String
   let excerpt: String
+  let is_active: Bool
+  let progress: Double
+  let current_chapter: String
+  let last_read_at: String?
 }
+
+private struct DigestActivityRow: Encodable {
+  let date: String
+  let read_minutes: Int
+  let listen_minutes: Int
+  let pages_read: Int
+}
+
+private struct EmptyBody: Encodable {}

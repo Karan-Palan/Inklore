@@ -1,4 +1,4 @@
--- ReadSync cloud library schema.
+-- Inkflow cloud library schema.
 --
 -- Mirrors the on-device SwiftData model so a signed-in reader's library,
 -- highlights, notes, reading sessions, and goal can sync across devices.

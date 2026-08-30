@@ -1,4 +1,4 @@
--- Daily-digest sync tables for ReadSync.
+-- Daily-digest sync tables for Inkflow.
 -- Replaces the legacy Supabase tables. All rows are owner-scoped to the
 -- authenticated Better Auth subject; the iOS app sets owner_id to the signed-in
 -- user id, and RLS enforces that it matches the JWT subject.
