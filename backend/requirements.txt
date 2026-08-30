@@ -1,0 +1,8 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# 3.2.3 is no longer available from PyPI, which breaks clean Vercel/10x
+# builds. Keep the same minor line while using the next published patch.
+psycopg[binary,pool]==3.2.4
+httpx==0.28.1
+pydantic==2.10.4
+PyJWT[crypto]==2.10.1

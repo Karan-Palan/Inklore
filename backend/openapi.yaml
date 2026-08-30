@@ -1,0 +1,127 @@
+openapi: 3.0.3
+x-10x-generated-openapi: true
+info:
+  title: "ReadSync" Backend
+  version: 1.0.0
+servers:
+  - url: https://{project_ref}.api.10x.app
+    variables:
+      project_ref:
+        default: project
+paths:
+  "/api/v1/summaries":
+    post:
+      operationId: "create_summary"
+      summary: "Generate a grounded Markdown reading summary"
+      x-10x-route-name: "create_summary"
+      x-10x-auth-policy: "none"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_title, section_title, scope, text]
+              properties:
+                book_title: {type: string, maxLength: 300}
+                author: {type: string, maxLength: 300}
+                section_title: {type: string, maxLength: 300}
+                scope: {type: string, enum: [chapter, book]}
+                text: {type: string, minLength: 80, maxLength: 60000}
+      responses:
+        "200":
+          description: Generated summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [markdown, model, reasoning_effort]
+                properties:
+                  markdown: {type: string}
+                  model: {type: string}
+                  reasoning_effort: {type: string}
+      tags: [api]
+  "/api/v1/narration":
+    post:
+      operationId: "create_narration"
+      summary: "Generate ElevenLabs narration with character timing"
+      x-10x-route-name: "create_narration"
+      x-10x-auth-policy: "none"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: {type: string, minLength: 1, maxLength: 5000}
+                voice_id: {type: string, nullable: true, maxLength: 200}
+      responses:
+        "200":
+          description: Base64 audio and alignment
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [audio_base64, voice_id, output_format]
+                properties:
+                  audio_base64: {type: string}
+                  alignment: {type: object, nullable: true}
+                  normalized_alignment: {type: object, nullable: true}
+                  model: {type: string, nullable: true}
+                  voice_id: {type: string}
+                  output_format: {type: string}
+      tags: [api]
+  "/api/v1/daily-digest":
+    post:
+      operationId: "daily_digest"
+      summary: "POST /api/v1/daily-digest"
+      x-10x-route-name: "daily_digest"
+      x-10x-auth-policy: "required"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      tags:
+        - api
+  "/api/v1/digest/preferences":
+    post:
+      operationId: "digest_preferences"
+      summary: "POST /api/v1/digest/preferences"
+      x-10x-route-name: "digest_preferences"
+      x-10x-auth-policy: "required"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+      tags:
+        - api
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

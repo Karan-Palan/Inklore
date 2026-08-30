@@ -1,0 +1,232 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme
+   LastUpgradeVersion = "1430"
+   version = "1.7">
+   <BuildAction
+      parallelizeBuildables = "YES"
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
+      <BuildActionEntries>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
+               BuildableName = "ReadSync.app"
+               BlueprintName = "ReadSync"
+               ReferencedContainer = "container:ReadSync.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
+      </BuildActionEntries>
+   </BuildAction>
+   <TestAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      shouldUseLaunchSchemeArgsEnv = "NO"
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
+      <MacroExpansion>
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
+            BuildableName = "ReadSync.app"
+            BlueprintName = "ReadSync"
+            ReferencedContainer = "container:ReadSync.xcodeproj">
+         </BuildableReference>
+      </MacroExpansion>
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "7CACB8565959F171C03D3994"
+               BuildableName = "ReadSyncTests.xctest"
+               BlueprintName = "ReadSyncTests"
+               ReferencedContainer = "container:ReadSync.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "SUPABASE_ANON_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_PUBLISHABLE_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_URL"
+            value = "https://kagcljttmeyqexmwgfyu.supabase.co"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_AUTH_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/auth"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_DATA_API_URL"
+            value = "https://ep-small-dawn-atpg7xjo.apirest.c-9.us-east-1.aws.neon.tech/neondb/rest/v1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_PROJECT_API_URL"
+            value = "https://readsync-api.vercel.app"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_READY_AUTH_METHODS"
+            value = "emailPassword"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_STORAGE_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/storage"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
+   </TestAction>
+   <LaunchAction
+      buildConfiguration = "Debug"
+      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
+      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      launchStyle = "0"
+      useCustomWorkingDirectory = "NO"
+      ignoresPersistentStateOnLaunch = "NO"
+      debugDocumentVersioning = "YES"
+      debugServiceExtension = "internal"
+      allowLocationSimulation = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
+            BuildableName = "ReadSync.app"
+            BlueprintName = "ReadSync"
+            ReferencedContainer = "container:ReadSync.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "SUPABASE_ANON_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_PUBLISHABLE_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_URL"
+            value = "https://kagcljttmeyqexmwgfyu.supabase.co"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_AUTH_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/auth"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_DATA_API_URL"
+            value = "https://ep-small-dawn-atpg7xjo.apirest.c-9.us-east-1.aws.neon.tech/neondb/rest/v1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_PROJECT_API_URL"
+            value = "https://readsync-api.vercel.app"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_READY_AUTH_METHODS"
+            value = "emailPassword"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_STORAGE_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/storage"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
+   </LaunchAction>
+   <ProfileAction
+      buildConfiguration = "Release"
+      shouldUseLaunchSchemeArgsEnv = "NO"
+      savedToolIdentifier = ""
+      useCustomWorkingDirectory = "NO"
+      debugDocumentVersioning = "YES">
+      <BuildableProductRunnable
+         runnableDebuggingMode = "0">
+         <BuildableReference
+            BuildableIdentifier = "primary"
+            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
+            BuildableName = "ReadSync.app"
+            BlueprintName = "ReadSync"
+            ReferencedContainer = "container:ReadSync.xcodeproj">
+         </BuildableReference>
+      </BuildableProductRunnable>
+      <CommandLineArguments>
+      </CommandLineArguments>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "SUPABASE_ANON_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_PUBLISHABLE_KEY"
+            value = "sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "SUPABASE_URL"
+            value = "https://kagcljttmeyqexmwgfyu.supabase.co"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_AUTH_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/auth"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_DATA_API_URL"
+            value = "https://ep-small-dawn-atpg7xjo.apirest.c-9.us-east-1.aws.neon.tech/neondb/rest/v1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_PROJECT_API_URL"
+            value = "https://readsync-api.vercel.app"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_READY_AUTH_METHODS"
+            value = "emailPassword"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TENX_STORAGE_BASE_URL"
+            value = "https://prv-8fbe26fba35f456c.preview.10x.app/storage"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
+   </ProfileAction>
+   <AnalyzeAction
+      buildConfiguration = "Debug">
+   </AnalyzeAction>
+   <ArchiveAction
+      buildConfiguration = "Release"
+      revealArchiveInOrganizer = "YES">
+   </ArchiveAction>
+</Scheme>

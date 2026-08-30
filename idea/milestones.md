@@ -1,0 +1,16 @@
+- [x] Tab shell + navigation (Library, Search, You/Stats, Notebook)
+- [x] Real book sources: Project Gutenberg EPUB + Internet Archive text; PDF/EPUB import
+- [x] Full reader pipelines (EPUB/PDF/TextKit) + highlights/notes/Notebook
+- [x] Pro on-device TTS audiobook player with read↔listen synced progress
+- [x] Reading stats: streak, weekly goal ring, reading vs listening split
+- [x] Onboarding personalization quiz + genre-aware recommendations
+- [x] Account-first auth + Keychain session + gated SignInView + account deletion
+- [x] Apple + Google sign-in live: providers configured server-side, Apple routed around email-only client guard, verified compile
+- [x] Daily notes email settings + daily-digest backend route/cron
+- [x] Cloud library schema authored + validated (library_books/highlights/notes/sessions/goals, owner-scoped RLS, FKs) + book_files bucket
+- [ ] Apply cloud library migration to Neon (retry now that app service is resumed/ready)
+- [ ] Deploy backend so new bucket/config go live
+- [ ] Wire iOS app to sync library/highlights/notes to cloud via TenxData
+- [ ] Verify Resend sender domain + confirm real digest emails deliver
+- [ ] Confirm Apple Sign in with Apple entitlement/App ID capability + Google callback URLs registered (preview + prod)
+- [ ] App Store submission user-owned details (support email, legal entity, privacy URL)
