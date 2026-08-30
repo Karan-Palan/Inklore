@@ -14,17 +14,29 @@ struct CategoryFilterBar: View {
           Button {
             withAnimation(.snappy) { selection = category }
           } label: {
-            Text(category)
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(isSelected ? Theme.paper : Theme.inkSoft)
-              .padding(.horizontal, Theme.lg)
-              .padding(.vertical, Theme.sm + 2)
-              .background(
-                Capsule(style: .continuous)
-                  .fill(isSelected ? Theme.ink : Theme.surfaceAlt)
-              )
+            HStack(spacing: 6) {
+              if isSelected {
+                Image(systemName: "checkmark")
+                  .font(.caption2.weight(.bold))
+              }
+              Text(category)
+                .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(isSelected ? .white : Theme.inkSoft)
+            .padding(.horizontal, Theme.lg)
+            .padding(.vertical, Theme.sm + 2)
+            .background(
+              Capsule(style: .continuous)
+                .fill(isSelected ? Theme.accent : Theme.surfaceAlt)
+            )
+            .overlay {
+              Capsule(style: .continuous)
+                .strokeBorder(isSelected ? Theme.accent : Theme.hairline.opacity(0.8))
+            }
           }
           .buttonStyle(.plain)
+          .contentShape(Capsule())
+          .accessibilityLabel("\(category)\(isSelected ? ", selected" : "")")
           .sensoryFeedback(.selection, trigger: selection)
         }
       }
@@ -66,7 +78,7 @@ struct ThinProgressBar: View {
         Capsule().fill(Theme.hairline)
         Capsule()
           .fill(tint)
-          .frame(width: max(3, geo.size.width * progress))
+          .frame(width: max(progress > 0 ? 3 : 0, geo.size.width * min(max(progress, 0), 1)))
       }
     }
     .frame(height: 4)

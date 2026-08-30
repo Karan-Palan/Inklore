@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A short, product-led first run. It explains the core ReadSync loop, captures
+/// A short, product-led first run. It explains the core Inkflow loop, captures
 /// only choices we can use immediately, then opens the real app without auth or
 /// a paywall.
 struct OnboardingView: View {
@@ -20,7 +20,7 @@ struct OnboardingView: View {
   }
 
   private var stepLabel: String {
-    "\(step.rawValue) of \(Step.allCases.count - 2)"
+    "STEP \(step.rawValue) / \(Step.allCases.count - 2)"
   }
 
   var body: some View {
@@ -78,32 +78,49 @@ private struct WelcomeStep: View {
   var body: some View {
     ZStack {
       LinearGradient(
-        colors: [Theme.paper, Theme.accentSoft.opacity(0.5)],
-        startPoint: .top, endPoint: .bottom
+        colors: [Theme.paper, Theme.mossSoft.opacity(0.58), Theme.accentSoft.opacity(0.42)],
+        startPoint: .topLeading, endPoint: .bottomTrailing
       )
       .ignoresSafeArea()
 
+      Circle()
+        .fill(Theme.sun.opacity(0.28))
+        .frame(width: 260, height: 260)
+        .blur(radius: 6)
+        .offset(x: 125, y: -310)
+        .accessibilityHidden(true)
+
       VStack(spacing: Theme.xl) {
-        Spacer(minLength: Theme.xl)
+        Spacer(minLength: Theme.lg)
+
+        HStack(spacing: 7) {
+          Image(systemName: "sparkle")
+          Text("INKFLOW")
+            .tracking(3.2)
+        }
+        .font(.caption.weight(.heavy))
+        .foregroundStyle(Theme.moss)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Inkflow")
 
         SyncReaderPreview(isVisible: appeared)
           .padding(.horizontal, Theme.xl)
 
         VStack(spacing: Theme.md) {
-          Text("Every book.\nRead and heard in sync.")
-            .font(.system(.largeTitle, design: .serif).weight(.bold))
+          Text("Make room\nfor a better story.")
+            .font(.system(size: 37, weight: .bold, design: .serif))
             .foregroundStyle(Theme.ink)
             .multilineTextAlignment(.center)
-          Text("Bring a book, follow every spoken word, and keep the ideas that matter.")
-            .font(.callout)
+          Text("Read, listen, and keep the ideas worth returning to — all from one thoughtfully quiet shelf.")
+            .font(.callout.weight(.medium))
             .foregroundStyle(Theme.inkSoft)
             .multilineTextAlignment(.center)
             .padding(.horizontal, Theme.xl)
         }
         Spacer()
-        OnboardingPrimaryButton(title: "Make reading mine") { onStart() }
+        OnboardingPrimaryButton(title: "Build my reading ritual") { onStart() }
           .padding(.horizontal, Theme.xl)
-        Text("Free for the hackathon · no account needed")
+        Text("No account needed · your library stays yours")
           .font(.footnote)
           .foregroundStyle(Theme.inkFaint)
           .padding(.bottom, Theme.lg)
@@ -120,27 +137,27 @@ private struct SyncReaderPreview: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack {
-        Label("Chapter 1", systemImage: "book.closed")
+        Label("A little reading ritual", systemImage: "book.closed.fill")
           .font(.caption.weight(.semibold))
         Spacer()
-        Image(systemName: "textformat.size")
+        Image(systemName: "bookmark.fill")
       }
       .foregroundStyle(Theme.inkSoft)
       .padding(Theme.md)
 
       VStack(alignment: .leading, spacing: 10) {
-        Text("A ROOM OF ONE'S OWN")
+        Text("TODAY'S QUIET CHAPTER")
           .font(.caption2.weight(.bold))
           .tracking(1.2)
           .foregroundStyle(Theme.inkFaint)
-        Text("A woman must have money and a room of her own if she is to write fiction.")
+        Text("A book is a place to meet your thoughts, one unhurried page at a time.")
           .font(.system(.title3, design: .serif))
           .foregroundStyle(Theme.ink)
           .lineSpacing(5)
           .overlay(alignment: .bottomLeading) {
             Capsule()
               .fill(Theme.highlightYellow.opacity(0.55))
-              .frame(width: 192, height: 9)
+              .frame(width: 218, height: 9)
               .offset(y: 2)
               .zIndex(-1)
           }
@@ -149,12 +166,12 @@ private struct SyncReaderPreview: View {
       .padding(.bottom, Theme.lg)
 
       HStack(spacing: Theme.md) {
-        Image(systemName: "backward.fill")
+        Image(systemName: "gobackward.15")
         Image(systemName: "pause.fill")
           .foregroundStyle(.white)
           .frame(width: 44, height: 44)
           .background(Theme.accent, in: Circle())
-        Image(systemName: "forward.fill")
+        Image(systemName: "goforward.15")
         AudioWaveform(level: 0.55, isPlaying: true, tint: Theme.accent)
           .frame(height: 28)
           .clipped()

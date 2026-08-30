@@ -21,19 +21,30 @@ struct SourcesStep: View {
       onContinue: onNext
     ) {
       VStack(spacing: Theme.md) {
+        HStack(spacing: Theme.sm) {
+          Image(systemName: "tray.full.fill")
+            .foregroundStyle(Theme.accent)
+          Text("ONE CALM HOME FOR EVERY FORMAT")
+            .font(.caption2.weight(.heavy))
+            .tracking(1)
+            .foregroundStyle(Theme.inkFaint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, Theme.xs)
+
         OnboardingCapabilityCard(
           icon: "building.columns.fill",
-          title: "Search free libraries",
+          title: "Find a book with a past",
           detail: "Discover downloadable books from the Internet Archive and Project Gutenberg.",
           tint: Color(hex: 0x0F5C5B))
         OnboardingCapabilityCard(
           icon: "doc.richtext.fill",
-          title: "Import your own files",
+          title: "Bring the books you own",
           detail: "Open PDF, EPUB, and Word documents directly from Files.",
           tint: Color(hex: 0x2E5E9E))
         OnboardingCapabilityCard(
           icon: "link",
-          title: "Bring a direct link",
+          title: "Save a good link",
           detail: "Paste a PDF or EPUB link and keep it beside the rest of your library.",
           tint: Color(hex: 0x7A1F3D))
 
@@ -60,17 +71,14 @@ struct PreferencesStep: View {
     OnboardingScaffold(
       progress: progress,
       stepLabel: stepLabel,
-      title: "How should ReadSync fit your day?",
+      title: "How should Inkflow fit your day?",
       subtitle: "You can switch between page and audio at any time.",
       ctaTitle: "Continue",
       onBack: onBack,
       onContinue: onNext
     ) {
       VStack(alignment: .leading, spacing: Theme.lg) {
-        Text("I'LL MOSTLY")
-          .font(.caption.weight(.bold))
-          .tracking(1.1)
-          .foregroundStyle(Theme.inkFaint)
+        OnboardingSectionLabel("HOW YOU'LL SPEND TIME HERE")
 
         VStack(spacing: Theme.md) {
           ForEach(ConsumeMode.allCases) { mode in
@@ -83,10 +91,7 @@ struct PreferencesStep: View {
           }
         }
 
-        Text("MY DAILY RHYTHM")
-          .font(.caption.weight(.bold))
-          .tracking(1.1)
-          .foregroundStyle(Theme.inkFaint)
+        OnboardingSectionLabel("YOUR DAILY RHYTHM")
           .padding(.top, Theme.sm)
 
         ScrollView(.horizontal, showsIndicators: false) {
@@ -114,15 +119,22 @@ private struct GoalChip: View {
 
   var body: some View {
     Button(action: action) {
-      VStack(alignment: .leading, spacing: 3) {
-        Text(option.label)
-          .font(.headline.monospacedDigit())
+      VStack(alignment: .leading, spacing: 5) {
+        HStack {
+          Text(option.label)
+            .font(.headline.monospacedDigit().weight(.bold))
+          Spacer(minLength: 0)
+          if selected {
+            Image(systemName: "checkmark")
+              .font(.caption.weight(.black))
+          }
+        }
         Text(option.shortBlurb)
-          .font(.caption)
+          .font(.caption.weight(.medium))
       }
       .foregroundStyle(selected ? Color.white : Theme.ink)
       .frame(width: 104, alignment: .leading)
-      .frame(minHeight: 62, alignment: .leading)
+      .frame(minHeight: 68, alignment: .leading)
       .padding(.horizontal, Theme.md)
       .background(selected ? Theme.accent : Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
       .overlay {
@@ -131,6 +143,8 @@ private struct GoalChip: View {
       }
     }
     .buttonStyle(.plain)
+    .animation(.snappy, value: selected)
+    .sensoryFeedback(.selection, trigger: selected)
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }
@@ -159,10 +173,21 @@ struct GenreStep: View {
       onBack: onBack,
       onContinue: onNext
     ) {
-      LazyVGrid(columns: columns, spacing: Theme.md) {
-        ForEach(ReadingGenre.all) { genre in
-          GenreCard(genre: genre, selected: state.genre == genre) {
-            state.genre = genre
+      VStack(alignment: .leading, spacing: Theme.md) {
+        HStack(spacing: Theme.sm) {
+          Image(systemName: "wand.and.stars")
+            .foregroundStyle(Theme.accent)
+          Text("WE'LL BUILD YOUR FIRST SHELF AROUND THIS")
+            .font(.caption2.weight(.heavy))
+            .tracking(1)
+            .foregroundStyle(Theme.inkFaint)
+        }
+
+        LazyVGrid(columns: columns, spacing: Theme.md) {
+          ForEach(ReadingGenre.all) { genre in
+            GenreCard(genre: genre, selected: state.genre == genre) {
+              state.genre = genre
+            }
           }
         }
       }
@@ -177,21 +202,21 @@ private struct GenreCard: View {
 
   var body: some View {
     Button(action: action) {
-      VStack(alignment: .leading, spacing: Theme.sm) {
-        HStack(spacing: Theme.sm) {
+      VStack(spacing: Theme.sm) {
+        ZStack(alignment: .topTrailing) {
           Image(systemName: genre.icon)
-            .font(.headline)
+            .font(.title3.weight(.semibold))
             .foregroundStyle(selected ? .white : Color(hex: genre.tint))
-            .frame(width: 38, height: 38)
+            .frame(width: 46, height: 46)
             .background(
               selected ? Color(hex: genre.tint) : Color(hex: genre.tint).opacity(0.14),
               in: RoundedRectangle(cornerRadius: Theme.radiusSm, style: .continuous)
             )
-          Spacer(minLength: 0)
-          if selected {
-            Image(systemName: "checkmark.circle.fill")
-              .foregroundStyle(Color(hex: genre.tint))
-          }
+          Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(selected ? Color(hex: genre.tint) : Theme.inkFaint.opacity(0.4))
+            .background(Theme.surface, in: Circle())
+            .offset(x: 8, y: -7)
         }
 
         // Real cover art preview of the genre's top recommendations.
@@ -201,17 +226,19 @@ private struct GenreCard: View {
           }
         }
         .padding(.vertical, 2)
+        .frame(maxWidth: .infinity)
 
         Text(genre.name)
-          .font(.subheadline.weight(.semibold))
+          .font(.subheadline.weight(.bold))
           .foregroundStyle(Theme.ink)
-          .multilineTextAlignment(.leading)
+          .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
       }
-      .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+      .frame(maxWidth: .infinity, minHeight: 160, alignment: .top)
       .padding(Theme.md)
       .background(
-        Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
+        selected ? Color(hex: genre.tint).opacity(0.08) : Theme.surface,
+        in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
       )
       .overlay(
         RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
@@ -220,6 +247,28 @@ private struct GenreCard: View {
     }
     .buttonStyle(.plain)
     .animation(.snappy, value: selected)
+    .sensoryFeedback(.selection, trigger: selected)
+    .accessibilityAddTraits(selected ? .isSelected : [])
+  }
+}
+
+private struct OnboardingSectionLabel: View {
+  let title: String
+
+  init(_ title: String) {
+    self.title = title
+  }
+
+  var body: some View {
+    HStack(spacing: Theme.sm) {
+      Capsule()
+        .fill(Theme.accent)
+        .frame(width: 18, height: 3)
+      Text(title)
+        .font(.caption2.weight(.heavy))
+        .tracking(1.1)
+        .foregroundStyle(Theme.inkFaint)
+    }
   }
 }
 

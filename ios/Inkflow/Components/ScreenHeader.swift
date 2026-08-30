@@ -15,15 +15,20 @@ struct ScreenHeader<Trailing: View>: View {
   var body: some View {
     HStack(alignment: .center) {
       Text(title)
-        .font(.largeTitle.weight(.bold))
+        .font(.system(size: 32, weight: .bold, design: .serif))
         .foregroundStyle(Theme.ink)
       Spacer(minLength: Theme.sm)
       trailing
     }
     .padding(.horizontal, Theme.lg)
     .padding(.top, Theme.lg)
-    .padding(.bottom, Theme.xs)
+    .padding(.bottom, Theme.sm)
     .background(Theme.paper)
+    .overlay(alignment: .bottom) {
+      Rectangle()
+        .fill(Theme.hairline.opacity(0.7))
+        .frame(height: 1)
+    }
   }
 }
 
@@ -62,6 +67,9 @@ struct InlineSearchField: View {
     .padding(.horizontal, Theme.md)
     .padding(.vertical, 11)
     .background(Theme.surfaceAlt, in: Capsule())
+    .overlay {
+      Capsule().strokeBorder(Theme.hairline.opacity(0.7))
+    }
     .padding(.horizontal, Theme.lg)
     .padding(.bottom, Theme.sm)
     .background(Theme.paper)

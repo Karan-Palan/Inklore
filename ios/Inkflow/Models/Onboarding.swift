@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 import SwiftUI
 
-/// What the reader wants out of ReadSync. Multi-select, drives copy in the reveal.
+/// What the reader wants out of Inkflow. Multi-select, drives copy in the reveal.
 enum ReadingMotivation: String, CaseIterable, Identifiable {
   case finishMore = "Finish more books"
   case dailyHabit = "Build a daily habit"
@@ -82,6 +82,42 @@ struct GenreBook: Hashable, Identifiable {
   var searchQuery: String { title }
 }
 
+/// A deliberately small, hand-checked Project Gutenberg starter title. Every
+/// item below is a public-domain work with a direct EPUB endpoint, so an
+/// onboarding shelf can be useful immediately without relying on a search
+/// ranking or a third-party account.
+struct GutenbergStarterBook: Hashable, Identifiable, Sendable {
+  let gutenbergID: Int
+  let title: String
+  let author: String
+
+  var id: Int { gutenbergID }
+  var sourceIdentifier: String { "gutenberg-\(gutenbergID)" }
+
+  /// Gutenberg's EPUB3-with-images endpoint. `BookDownloader` validates and
+  /// extracts this archive before it reaches SwiftData.
+  var epubURL: URL? {
+    URL(string: "https://www.gutenberg.org/ebooks/\(gutenbergID).epub3.images")
+  }
+
+  var coverURL: URL? {
+    URL(string: "https://www.gutenberg.org/cache/epub/\(gutenbergID)/pg\(gutenbergID).cover.medium.jpg")
+  }
+
+  var discoverResult: DiscoverResult {
+    DiscoverResult(
+      id: sourceIdentifier,
+      title: title,
+      author: author,
+      detail: "Public-domain EPUB · Project Gutenberg",
+      source: .gutenberg,
+      epubURL: epubURL,
+      coverURL: coverURL,
+      archiveIdentifier: ""
+    )
+  }
+}
+
 /// A reading genre with real, popular recommendations shown as covers. Picking a
 /// genre tailors the empty-library prompt and the Search recommendations — it does
 /// not seed or download anything.
@@ -100,6 +136,15 @@ struct ReadingGenre: Identifiable, Hashable {
   /// A fresh, shuffled slice of this genre's pool.
   func recommendations(_ count: Int = 4) -> [GenreBook] {
     Array(pool.shuffled().prefix(count))
+  }
+
+  /// Exactly two public-domain, English-language Project Gutenberg EPUBs for
+  /// every onboarding genre. IDs are intentionally pinned rather than resolved
+  /// through search so the starter shelf is predictable and legally sourced.
+  var starterBooks: [GutenbergStarterBook] {
+    let books = Self.gutenbergStarterShelves[id] ?? []
+    assert(books.count == 2, "Each onboarding genre must have exactly two starter EPUBs.")
+    return books
   }
 
   /// The related genres a reader of this one is likely to also enjoy.
@@ -191,6 +236,37 @@ struct ReadingGenre: Identifiable, Hashable {
       ]),
   ]
 
+  private static let gutenbergStarterShelves: [String: [GutenbergStarterBook]] = [
+    "selfhelp": [
+      .init(gutenbergID: 4507, title: "As a Man Thinketh", author: "James Allen"),
+      .init(
+        gutenbergID: 5657, title: "The Practice of the Presence of God",
+        author: "Brother Lawrence"),
+    ],
+    "business": [
+      .init(gutenbergID: 59844, title: "The Science of Getting Rich", author: "W. D. Wattles"),
+      .init(gutenbergID: 8581, title: "The Art of Money Getting", author: "P. T. Barnum"),
+    ],
+    "fiction": [
+      .init(gutenbergID: 1342, title: "Pride and Prejudice", author: "Jane Austen"),
+      .init(gutenbergID: 64317, title: "The Great Gatsby", author: "F. Scott Fitzgerald"),
+    ],
+    "mystery": [
+      .init(
+        gutenbergID: 1661, title: "The Adventures of Sherlock Holmes",
+        author: "Arthur Conan Doyle"),
+      .init(gutenbergID: 155, title: "The Moonstone", author: "Wilkie Collins"),
+    ],
+    "scifi": [
+      .init(gutenbergID: 84, title: "Frankenstein", author: "Mary Wollstonecraft Shelley"),
+      .init(gutenbergID: 35, title: "The Time Machine", author: "H. G. Wells"),
+    ],
+    "philosophy": [
+      .init(gutenbergID: 2680, title: "Meditations", author: "Marcus Aurelius"),
+      .init(gutenbergID: 1497, title: "The Republic", author: "Plato"),
+    ],
+  ]
+
   static func named(_ id: String) -> ReadingGenre? {
     all.first { $0.id == id }
   }
@@ -211,8 +287,8 @@ final class OnboardingState {
 /// Persists the "has finished onboarding" flag and the reader's chosen genre so
 /// the Library + Search can keep recommending in their taste after onboarding.
 enum OnboardingFlag {
-  static let key = "readsync.didCompleteOnboarding"
-  static let genreKey = "readsync.selectedGenre"
+  static let key = "inkflow.didCompleteOnboarding"
+  static let genreKey = "inkflow.selectedGenre"
 
   static var completed: Bool {
     UserDefaults.standard.bool(forKey: key)
@@ -298,7 +374,10 @@ enum OnboardingPersistence {
       context.insert(profile)
     }
 
-    profile.hasCompletedOnboarding = true
+    // The plan is durable at this point, but routing is finalized only after
+    // starter EPUB preparation finishes (or the reader explicitly continues
+    // after an offline error). This makes an interrupted download resumable.
+    profile.hasCompletedOnboarding = false
     profile.consumeModeRaw = state.consumeMode.rawValue
     profile.dailyMinutesTarget = state.dailyMinutes
     profile.weeklyMinutesTarget = state.weeklyMinutes
@@ -316,6 +395,45 @@ enum OnboardingPersistence {
     goal.dailyMinutesTarget = state.dailyMinutes
     goal.weeklyMinutesTarget = state.weeklyMinutes
 
+    try context.save()
+  }
+
+  /// Atomically flips the durable profile and the lightweight launch flag once
+  /// onboarding is genuinely ready to leave.
+  @MainActor
+  static func finalizeOnboarding(in context: ModelContext) throws {
+    let profiles = try context.fetch(FetchDescriptor<ReaderProfile>())
+    if let profile = profiles.first {
+      profile.hasCompletedOnboarding = true
+      profile.updatedAt = .now
+    }
+    try context.save()
+    OnboardingFlag.markCompleted()
+  }
+
+  /// Keeps the profile and goal in lockstep when the reader later revises the
+  /// three onboarding choices from the in-app preferences editor.
+  @MainActor
+  static func savePreferences(
+    profile: ReaderProfile,
+    goal: ReadingGoal,
+    consumeMode: ConsumeMode,
+    dailyMinutes: Int,
+    weeklyMinutes: Int,
+    genre: ReadingGenre,
+    in context: ModelContext
+  ) throws {
+    profile.hasCompletedOnboarding = true
+    profile.consumeModeRaw = consumeMode.rawValue
+    profile.dailyMinutesTarget = dailyMinutes
+    profile.weeklyMinutesTarget = weeklyMinutes
+    profile.selectedGenreID = genre.id
+    profile.updatedAt = .now
+
+    goal.dailyMinutesTarget = dailyMinutes
+    goal.weeklyMinutesTarget = weeklyMinutes
+
+    OnboardingFlag.saveGenre(genre)
     try context.save()
   }
 
@@ -347,14 +465,22 @@ enum OnboardingPersistence {
 /// pre-filled search query (e.g. the empty library → Search a genre).
 @Observable
 final class AppRouter {
-  /// 0 Library · 1 Search · 2 You · 3 Notebook — matches the TabView order.
+  /// 0 Library · 1 Search · 2 Notes · 3 You — matches the TabView order.
   var selectedTab: Int = 0
   /// A query to drop into Search the next time it appears.
   var pendingSearch: String?
+  /// Presentation-only onboarding replay. This never clears SwiftData,
+  /// UserDefaults, downloads, notes, summaries, or reading progress.
+  var isReplayingOnboarding = false
 
   func openSearch(query: String? = nil) {
     pendingSearch = query
     selectedTab = 1
+  }
+
+  func replayOnboarding() {
+    selectedTab = 0
+    isReplayingOnboarding = true
   }
 }
 

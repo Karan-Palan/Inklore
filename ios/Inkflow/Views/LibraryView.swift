@@ -50,11 +50,13 @@ struct LibraryView: View {
       : books.filter { $0.category == selectedCategory }
   }
 
-  private var newAdditions: [Book] {
+  private var recentAdditions: [Book] {
     filteredBooks.sorted { $0.addedDate > $1.addedDate }
   }
 
-  private var audiobooks: [Book] { books.filter { $0.canListen && $0.hasAudio } }
+  private var audiobooks: [Book] {
+    filteredBooks.filter { $0.canListen && $0.hasAudio }
+  }
 
   private var supportedImportTypes: [UTType] {
     var types: [UTType] = [.pdf, .epub, .plainText, .rtf, .html]
@@ -115,18 +117,21 @@ struct LibraryView: View {
               emptyLibrary
             } else {
               VStack(alignment: .leading, spacing: Theme.xl) {
+                libraryWelcome
                 if let primaryBook {
                   continueHero(primaryBook)
+                } else {
+                  libraryStarter
                 }
                 if continueReading.count > 1 {
-                  shelf("Keep reading", books: Array(continueReading.dropFirst()))
+                  shelf("Continue reading", books: Array(continueReading.dropFirst()))
                 }
                 if libraryCategories.count > 1 {
                   CategoryFilterBar(categories: libraryCategories, selection: $selectedCategory)
                 }
-                shelf("New in your library", books: newAdditions, seeMore: true)
+                shelf("Recently added", books: recentAdditions)
                 if selectedCategory == "All", !audiobooks.isEmpty {
-                  shelf("Available on audio", books: audiobooks)
+                  shelf("Listening next", books: audiobooks)
                 }
                 Color.clear.frame(height: Theme.lg)
               }
@@ -149,7 +154,7 @@ struct LibraryView: View {
           Button("Cancel", role: .cancel) {}
           Button("Import") { handleURLImport() }
         } message: {
-          Text("Paste an article or a public link to a PDF, EPUB, DOCX, RTF, Markdown, or text file.")
+          Text("Paste any public article, Paul Graham or X post, or a link to a PDF, EPUB, DOCX, RTF, Markdown, or text file.")
         }
         .alert(
           "Import failed", isPresented: .constant(importError != nil), presenting: importError
@@ -195,20 +200,33 @@ struct LibraryView: View {
 
   private var emptyLibrary: some View {
     let genre = OnboardingFlag.selectedGenre
-    return VStack(spacing: Theme.lg) {
-      Image(systemName: "books.vertical")
-        .font(.system(size: 56))
-        .foregroundStyle(Theme.accent)
-      Text("Your library is empty")
-        .font(.title2.weight(.bold))
-        .foregroundStyle(Theme.ink)
-      Text(
-        "Find a free book to read or listen to — we've lined up popular \(genre.name.lowercased()) picks to get you started."
-      )
-      .font(.subheadline)
-      .multilineTextAlignment(.center)
-      .foregroundStyle(Theme.inkSoft)
-      .padding(.horizontal, Theme.xl)
+    return VStack(spacing: Theme.xl) {
+      ZStack {
+        Circle()
+          .fill(Theme.mossSoft.opacity(0.76))
+          .frame(width: 126, height: 126)
+        Image(systemName: "books.vertical.fill")
+          .font(.system(size: 48, weight: .medium))
+          .foregroundStyle(Theme.moss)
+        Image(systemName: "sparkle")
+          .font(.title3.weight(.bold))
+          .foregroundStyle(Theme.accent)
+          .offset(x: 40, y: -38)
+      }
+      .accessibilityHidden(true)
+
+      VStack(spacing: Theme.sm) {
+        Text("Your next chapter starts here")
+          .font(.system(.title2, design: .serif).weight(.bold))
+          .foregroundStyle(Theme.ink)
+        Text(
+          "Choose a free \(genre.name.lowercased()) pick, or bring a book already waiting for you."
+        )
+        .font(.subheadline.weight(.medium))
+        .multilineTextAlignment(.center)
+        .foregroundStyle(Theme.inkSoft)
+        .padding(.horizontal, Theme.lg)
+      }
 
       // Real covers of the reader's genre, tapping straight into a Search.
       ScrollView(.horizontal, showsIndicators: false) {
@@ -234,35 +252,95 @@ struct LibraryView: View {
       }
       .padding(.top, Theme.sm)
 
-      Button {
-        router.openSearch(query: "\(genre.name)")
-      } label: {
-        Label("Search \(genre.name) books", systemImage: "magnifyingglass")
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(Theme.paper)
-          .padding(.horizontal, Theme.xl)
-          .padding(.vertical, Theme.sm + 4)
-          .background(Theme.ink, in: Capsule())
-      }
-      .padding(.top, Theme.xs)
+      HStack(spacing: Theme.sm) {
+        Button {
+          router.openSearch(query: "\(genre.name)")
+        } label: {
+          Label("Find a book", systemImage: "magnifyingglass")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(Theme.paper)
+            .padding(.horizontal, Theme.lg)
+            .padding(.vertical, Theme.sm + 5)
+            .background(Theme.ink, in: Capsule())
+        }
 
-      Text("Or tap ＋ to add a PDF, EPUB, Word document, article, or your own text.")
+        Button {
+          showImporter = true
+        } label: {
+          Image(systemName: "square.and.arrow.down")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(Theme.ink)
+            .frame(width: 42, height: 42)
+            .background(Theme.surface, in: Circle())
+            .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+        }
+        .accessibilityLabel("Import a book from Files")
+      }
+
+      Text("You can also import a PDF, EPUB, Word document, article, or your own text.")
         .font(.footnote)
         .foregroundStyle(Theme.inkFaint)
         .multilineTextAlignment(.center)
         .padding(.horizontal, Theme.xl)
     }
     .frame(maxWidth: .infinity)
-    .padding(.top, 64)
+    .padding(.top, 46)
     .padding(.horizontal, Theme.lg)
   }
 
   // MARK: Continue hero
 
+  private var libraryWelcome: some View {
+    HStack(alignment: .firstTextBaseline, spacing: Theme.md) {
+      VStack(alignment: .leading, spacing: 4) {
+        Text("YOUR SHELF")
+          .font(.caption2.weight(.heavy))
+          .tracking(1.2)
+          .foregroundStyle(Theme.inkFaint)
+        Text(books.count == 1 ? "One story, ready whenever you are." : "\(books.count) stories, all in one calm place.")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(Theme.ink)
+      }
+      Spacer(minLength: 0)
+      Image(systemName: "leaf.fill")
+        .font(.title3.weight(.semibold))
+        .foregroundStyle(Theme.moss)
+        .accessibilityHidden(true)
+    }
+    .padding(.horizontal, Theme.lg)
+    .padding(.top, Theme.md)
+  }
+
+  private var libraryStarter: some View {
+    HStack(spacing: Theme.md) {
+      Image(systemName: "book.closed.fill")
+        .font(.title3)
+        .foregroundStyle(Theme.accentDeep)
+        .frame(width: 46, height: 46)
+        .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+      VStack(alignment: .leading, spacing: 3) {
+        Text("Pick up where curiosity leads")
+          .font(.subheadline.weight(.bold))
+          .foregroundStyle(Theme.ink)
+        Text("Choose a recent title below to begin your next session.")
+          .font(.caption)
+          .foregroundStyle(Theme.inkSoft)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(Theme.md)
+    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+    .overlay {
+      RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
+        .stroke(Theme.hairline, lineWidth: 1)
+    }
+    .padding(.horizontal, Theme.lg)
+  }
+
   private func continueHero(_ book: Book) -> some View {
     VStack(alignment: .leading, spacing: Theme.md) {
       Text("CONTINUE READING")
-        .font(.caption.weight(.bold))
+        .font(.caption2.weight(.heavy))
         .tracking(1.2)
         .foregroundStyle(Theme.inkFaint)
         .padding(.horizontal, Theme.lg)
@@ -273,11 +351,11 @@ struct LibraryView: View {
 
         VStack(alignment: .leading, spacing: Theme.sm) {
           Text(book.title)
-            .font(.title3.weight(.bold).width(.compressed))
+            .font(.system(.title3, design: .serif).weight(.bold))
             .foregroundStyle(Theme.ink)
             .lineLimit(2)
           Text(book.author)
-            .font(.subheadline)
+            .font(.subheadline.weight(.medium))
             .foregroundStyle(Theme.inkSoft)
 
           Spacer(minLength: Theme.sm)
@@ -320,39 +398,53 @@ struct LibraryView: View {
         }
       }
       .padding(Theme.lg)
-      .background(
-        Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusLg, style: .continuous)
-      )
+      .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusLg, style: .continuous))
       .overlay(
         RoundedRectangle(cornerRadius: Theme.radiusLg, style: .continuous)
           .strokeBorder(Theme.hairline, lineWidth: 1)
       )
+      .shadow(color: Theme.shadow.opacity(0.3), radius: 14, y: 6)
       .padding(.horizontal, Theme.lg)
     }
   }
 
   // MARK: Shelf
 
-  private func shelf(_ title: String, books: [Book], seeMore: Bool = false) -> some View {
+  private func shelf(_ title: String, books: [Book]) -> some View {
     VStack(alignment: .leading, spacing: Theme.md) {
-      SectionHeader(
-        title: title, actionTitle: seeMore ? "See all" : nil, action: seeMore ? {} : nil)
+      SectionHeader(title: title)
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(alignment: .top, spacing: Theme.md) {
           ForEach(books) { book in
-            VStack(alignment: .leading, spacing: 6) {
-              BookCover(book: book, width: 116)
-              if book.isStarted && !book.isFinished {
-                ThinProgressBar(progress: book.progress)
-                  .frame(width: 116)
-              } else if book.isFinished {
-                Label("Finished", systemImage: "checkmark.circle.fill")
-                  .font(.caption2.weight(.semibold))
-                  .foregroundStyle(Theme.inkFaint)
+            Button {
+              detailBook = book
+            } label: {
+              VStack(alignment: .leading, spacing: 7) {
+                BookCover(book: book, width: 116)
+                if book.isStarted && !book.isFinished {
+                  ThinProgressBar(progress: book.progress)
+                    .frame(width: 116)
+                  Text("\(Int(book.progress * 100))% complete")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.inkFaint)
+                } else if book.isFinished {
+                  Label("Finished", systemImage: "checkmark.circle.fill")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.moss)
+                } else if book.hasAudio {
+                  Label("Read or listen", systemImage: "headphones")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.accentDeep)
+                } else {
+                  Text("Ready to read")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.inkFaint)
+                }
               }
+              .frame(width: 116, alignment: .leading)
             }
-            .frame(width: 116)
-            .onTapGesture { detailBook = book }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(book.title) by \(book.author)")
           }
         }
         .padding(.horizontal, Theme.lg)
@@ -425,7 +517,7 @@ struct LibraryView: View {
     isImporting = true
     Task { @MainActor in
       do {
-        try await BookImporter.importRemote(from: url, into: context)
+        try await BookImporter.importLink(from: url, into: context)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
       } catch {
         importError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -468,7 +560,7 @@ private struct PasteTextImportSheet: View {
             Text("Turn any text into a book")
               .font(.title2.bold())
               .foregroundStyle(Theme.ink)
-            Text("Paste notes, an essay, or a draft. ReadSync will make it readable, highlightable, and listenable.")
+            Text("Paste notes, an essay, or a draft. Inkflow will make it readable, highlightable, and listenable.")
               .font(.subheadline)
               .foregroundStyle(Theme.inkSoft)
           }

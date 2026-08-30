@@ -27,7 +27,7 @@ struct BackupService {
   /// Builds a readable text export of the user's highlights and notes.
   static func makeExport(highlights: [Highlight], notes: [Note]) -> Data {
     var lines: [String] = []
-    lines.append("ReadSync — Notes & Highlights backup")
+    lines.append("Inkflow — Notes & Highlights backup")
     lines.append("Exported \(ISO8601DateFormatter().string(from: .now))")
     lines.append("")
 
@@ -70,7 +70,7 @@ struct BackupService {
       return try await storage.upload(
         data: data,
         bucket: bucket,
-        filename: "readsync-notes-\(stamp).txt",
+        filename: "inkflow-notes-\(stamp).txt",
         contentType: "text/plain",
         accessToken: accessToken)
     } catch {

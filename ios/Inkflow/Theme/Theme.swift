@@ -1,19 +1,26 @@
 import SwiftUI
 import UIKit
 
-/// Central design tokens for ReadSync. "Paper & Ink" — a warm, content-forward
-/// reading palette where typography and covers carry the screen.
+/// Central design tokens for Inkflow. The palette is deliberately quiet enough
+/// for long reading sessions, with a warm signal colour for moments that need
+/// momentum (starting a book, making a choice, or resuming a session).
 enum Theme {
-  // MARK: Brand palette
-  static let ink = Color(hex: 0x1C1B19)  // primary text / strong elements
-  static let inkSoft = Color(hex: 0x575349)  // secondary text
-  static let inkFaint = Color(hex: 0x9A9484)  // tertiary / captions
-  static let paper = Color(hex: 0xFAF7F0)  // app background
+  // MARK: Inkflow palette
+  static let ink = Color(hex: 0x16342E)  // primary text / strong elements
+  static let inkSoft = Color(hex: 0x5C716B)  // secondary text
+  static let inkFaint = Color(hex: 0x8C9A95)  // tertiary / captions
+  static let paper = Color(hex: 0xF7F8F4)  // app background
   static let surface = Color(hex: 0xFFFFFF)  // cards / sheets
-  static let surfaceAlt = Color(hex: 0xF1ECE0)  // pills, wells
-  static let accent = Color(hex: 0xC2703D)  // warm terracotta accent
-  static let accentSoft = Color(hex: 0xE9D9C6)
-  static let hairline = Color(hex: 0xE6E0D3)
+  static let surfaceAlt = Color(hex: 0xEAF0EB)  // pills, wells
+  static let accent = Color(hex: 0xD96745)  // warm, optimistic action colour
+  static let accentDeep = Color(hex: 0xAD472E)
+  static let accentSoft = Color(hex: 0xF6D9CD)
+  static let moss = Color(hex: 0x2F6B5F)
+  static let mossSoft = Color(hex: 0xCFE4D9)
+  static let sun = Color(hex: 0xF3C95E)
+  static let lilac = Color(hex: 0xD8C6E9)
+  static let hairline = Color(hex: 0xDDE6DF)
+  static let shadow = Color(hex: 0x17372F, alpha: 0.12)
 
   // Highlight swatch colors (used in reader selection + notebook)
   static let highlightYellow = Color(hex: 0xF4D67A)
@@ -28,11 +35,13 @@ enum Theme {
   static let lg: CGFloat = 16
   static let xl: CGFloat = 24
   static let xxl: CGFloat = 32
+  static let xxxl: CGFloat = 40
 
   // MARK: Radius
   static let radiusSm: CGFloat = 8
   static let radiusMd: CGFloat = 14
   static let radiusLg: CGFloat = 22
+  static let radiusXl: CGFloat = 30
 }
 
 extension Color {
