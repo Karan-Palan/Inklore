@@ -56,3 +56,75 @@ enum AISummaryService {
     }
   }
 }
+
+/// Asynchronous video-summary API. Generation is durable on the backend and
+/// does not rely on a long-lived mobile request.
+enum VideoSummaryService {
+  struct Scene: Decodable, Identifiable {
+    var id: Int { position }
+    let position: Int
+    let title: String
+    let narration: String
+    let duration_seconds: Int
+    let status: String
+    let content_url: String?
+  }
+
+  struct Job: Decodable {
+    let id: UUID
+    let status: String
+    let title: String?
+    let aspect_ratio: String?
+    let duration_seconds: Int?
+    let completed_scenes: Int
+    let total_scenes: Int
+    let error_message: String?
+    let scenes: [Scene]
+  }
+
+  enum ServiceError: LocalizedError {
+    case emptyText, request(String)
+    var errorDescription: String? {
+      switch self {
+      case .emptyText: return "There isn't enough extractable text to create a video."
+      case .request(let message): return message
+      }
+    }
+  }
+
+  private struct CreateBody: Encodable {
+    let book_id: String
+    let book_title: String
+    let author: String
+    let text: String
+  }
+
+  private static let backend = BackendClient()
+
+  static func create(book: Book, accessToken: String) async throws -> Job {
+    let text = String(book.bodyText.prefix(200_000))
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard text.count >= 200 else { throw ServiceError.emptyText }
+    do {
+      return try await backend.send(
+        Job.self, path: "/api/v1/video-summaries",
+        body: CreateBody(book_id: book.id.uuidString, book_title: book.title,
+                         author: book.author, text: text),
+        accessToken: accessToken)
+    } catch let error as TenxBackendError {
+      throw ServiceError.request(error.errorDescription ?? "Could not start video generation.")
+    } catch {
+      throw ServiceError.request("Could not start video generation.")
+    }
+  }
+
+  static func status(id: UUID, accessToken: String) async throws -> Job {
+    do {
+      return try await backend.get(
+        Job.self, path: "/api/v1/video-summaries/\(id.uuidString)",
+        accessToken: accessToken)
+    } catch {
+      throw ServiceError.request("Could not refresh video generation.")
+    }
+  }
+}

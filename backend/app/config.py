@@ -38,6 +38,18 @@ class Settings:
         )
 
     @property
+    def elevenlabs_video_model(self) -> str:
+        return (
+            os.getenv("ELEVENLABS_VIDEO_MODEL", "veo-3.1-fast-generate-001").strip()
+            or "veo-3.1-fast-generate-001"
+        )
+
+    @property
+    def elevenlabs_video_resolution(self) -> str:
+        value = os.getenv("ELEVENLABS_VIDEO_RESOLUTION", "720p").strip()
+        return value if value in {"720p", "1080p", "4K"} else "720p"
+
+    @property
     def resend_api_key(self) -> str:
         return os.getenv("RESEND_API_KEY", "").strip()
 

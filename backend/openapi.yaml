@@ -1,7 +1,7 @@
 openapi: 3.0.3
 x-10x-generated-openapi: true
 info:
-  title: "ReadSync" Backend
+  title: ReadSync Backend
   version: 1.0.0
 servers:
   - url: https://{project_ref}.api.10x.app
@@ -119,9 +119,84 @@ paths:
                 type: object
       tags:
         - api
+  "/api/v1/video-summaries":
+    post:
+      operationId: create_video_summary
+      summary: Queue a source-grounded video summary
+      x-10x-route-name: create_video_summary
+      x-10x-auth-policy: required
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id, book_title, text]
+              properties:
+                book_id: {type: string, maxLength: 200}
+                book_title: {type: string, maxLength: 300}
+                author: {type: string, maxLength: 300}
+                text: {type: string, minLength: 200, maxLength: 200000}
+      responses:
+        "202":
+          description: Video job accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoJob"
+      tags: [api]
+  "/api/v1/video-summaries/{job_id}":
+    get:
+      operationId: get_video_summary
+      summary: Get video summary progress and completed clips
+      x-10x-route-name: get_video_summary
+      x-10x-auth-policy: required
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        "200":
+          description: Current video job state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoJob"
+      tags: [api]
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    VideoScene:
+      type: object
+      required: [position, title, narration, duration_seconds, status]
+      properties:
+        position: {type: integer}
+        title: {type: string}
+        narration: {type: string}
+        duration_seconds: {type: integer}
+        status: {type: string}
+        content_url: {type: string, nullable: true}
+    VideoJob:
+      type: object
+      required: [id, status, completed_scenes, total_scenes, scenes]
+      properties:
+        id: {type: string, format: uuid}
+        status: {type: string, enum: [queued, planning, rendering, completed, failed]}
+        title: {type: string, nullable: true}
+        aspect_ratio: {type: string, enum: ["9:16", "16:9"], nullable: true}
+        duration_seconds: {type: integer, nullable: true}
+        completed_scenes: {type: integer}
+        total_scenes: {type: integer}
+        error_message: {type: string, nullable: true}
+        scenes:
+          type: array
+          items: {$ref: "#/components/schemas/VideoScene"}

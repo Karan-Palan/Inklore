@@ -1,5 +1,6 @@
 """OpenAI Responses API adapter used by every ReadSync generation prompt."""
 
+import json
 import logging
 
 import httpx
@@ -58,3 +59,48 @@ def generate_text(
     if not text:
         raise OpenAIProviderError("OpenAI returned no text")
     return text
+
+
+def generate_json(
+    *, instructions: str, input_text: str, schema_name: str, schema: dict,
+    max_output_tokens: int = 4_000,
+) -> dict:
+    """Generate provider-validated JSON using the Responses structured output API."""
+    if not settings.openai_api_key:
+        raise OpenAIProviderError("OPENAI_API_KEY is not configured")
+    try:
+        response = httpx.post(
+            RESPONSES_URL,
+            headers={
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.openai_model,
+                "reasoning": {"effort": settings.openai_reasoning_effort},
+                "instructions": instructions,
+                "input": input_text,
+                "max_output_tokens": max_output_tokens,
+                "text": {"format": {
+                    "type": "json_schema", "name": schema_name,
+                    "strict": True, "schema": schema,
+                }},
+                "store": False,
+            },
+            timeout=90,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        parts = [
+            content["text"]
+            for item in payload.get("output", []) if item.get("type") == "message"
+            for content in item.get("content", [])
+            if content.get("type") == "output_text" and content.get("text")
+        ]
+        result = json.loads("\n".join(parts))
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        log.error("OpenAI structured generation failed: %s", exc)
+        raise OpenAIProviderError("OpenAI structured generation failed") from exc
+    if not isinstance(result, dict):
+        raise OpenAIProviderError("OpenAI returned invalid structured output")
+    return result

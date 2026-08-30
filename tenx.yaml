@@ -128,11 +128,27 @@ backend:
         method: POST
         handler: app.routes.daily_digest.router
         auth: required
+      - name: create_video_summary
+        path: /api/v1/video-summaries
+        method: POST
+        handler: app.routes.video_summaries.router
+        auth: required
+      - name: get_video_summary
+        path: /api/v1/video-summaries/{job_id}
+        method: GET
+        handler: app.routes.video_summaries.router
+        auth: required
     jobs:
       - name: daily_digest_cron
         schedule: "0 8 * * *"
         timezone: UTC
         command: "python -m app.jobs.daily_digest_job"
+        timeoutSeconds: 120
+        concurrency: skip
+      - name: video_summary_worker
+        schedule: "* * * * *"
+        timezone: UTC
+        command: "python -m app.jobs.video_summary_job"
         timeoutSeconds: 120
         concurrency: skip
   clients:
