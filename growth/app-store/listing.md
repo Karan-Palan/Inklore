@@ -1,0 +1,39 @@
+# ReadSync — App Store
+
+## Promotional text
+
+Read or listen — your place syncs automatically. Build streaks, hit goals, and never lose a page.
+
+## Description
+
+ReadSync is a calm, premium place to read or listen to any book — and your progress follows you across both.
+
+Start a chapter on the page during your commute, switch to narration while you cook, then come back to reading at night. ReadSync keeps your place in sync, so you never lose your spot whether your eyes or your ears are doing the work.
+
+Build a real reading habit. ReadSync quietly tracks every minute you read and every minute you listen, then turns them into streaks, weekly goals, and all-time totals you can actually feel proud of.
+
+WHY READSYNC
+
+Read or listen to any book, your way. A clean reader for the page and a focused audiobook player with adjustable speed, multiple voices, a sleep timer, and read-along highlighting.
+
+Progress synced across both. Switch between reading and listening anytime — your place carries over automatically.
+
+See every minute add up. Weekly goals, day streaks, and reading versus listening breakdowns keep you motivated without the noise.
+
+Find your next read. Search real books from Project Gutenberg and the Internet Archive and send them straight to your library, or import your own PDF and EPUB files.
+
+AI study notes. Let ReadSync turn your highlights and notes into concise study summaries, delivered to your inbox each morning.
+
+A daily notes email. Get the highlights you save delivered to your inbox every morning, so the ideas that matter actually stick.
+
+Designed to disappear. A warm, paper-and-ink interface that puts the words first and gets out of your way.
+
+ReadSync is built for people who love books and want a quieter, more thoughtful way to read more of them. No clutter, no noise — just you and the next great chapter.
+
+Download ReadSync and turn every spare minute into reading time.
+
+## Keywords
+
+ebook reader, audiobook, epub, pdf reader, reading tracker, reading streak, gutenberg, study notes
+
+<sub>Generated from `.tenx/app-store-submission.json` — edits here are overwritten when the listing is regenerated.</sub>

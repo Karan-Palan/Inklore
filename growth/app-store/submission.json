@@ -1,0 +1,518 @@
+{
+  "confirmations" : {
+    "confirmedFields" : {
+
+    },
+    "manualReviewNotes" : [
+
+    ]
+  },
+  "facts" : {
+    "accessibilityURL" : "",
+    "appName" : "ReadSync",
+    "authProvider" : "Supabase Auth",
+    "backendProvider" : "Supabase",
+    "bundleIdentifier" : "app.10x.readsync",
+    "collectsCameraData" : false,
+    "collectsContactsData" : false,
+    "collectsHealthData" : false,
+    "collectsLocationData" : false,
+    "collectsMicrophoneData" : false,
+    "collectsPhotoLibraryData" : false,
+    "companyName" : "Karan Palan",
+    "contactEmail" : "",
+    "entitlementKeys" : [
+      "com.apple.developer.applesignin"
+    ],
+    "hasUserGeneratedContent" : false,
+    "inferenceNotes" : [
+      "Detected StoreKit or subscription-related code.",
+      "Detected account or sign-in related code.",
+      "Detected Supabase environment or backend linkage.",
+      "Detected analytics-related code."
+    ],
+    "integratedServices" : [
+      "Analytics",
+      "OpenAI",
+      "OpenAI (AI study notes)",
+      "Resend (email delivery)",
+      "Supabase",
+      "Supabase (database + Edge Functions + cron)"
+    ],
+    "jurisdiction" : "",
+    "kidFocused" : false,
+    "legalEntityName" : "",
+    "marketingURL" : "",
+    "permissionUsageDescriptions" : {
+
+    },
+    "privacyTrackingDomains" : [
+
+    ],
+    "projectSummary" : "## ReadSync — App Clone Brief (Kindle-inspired)\n\nA native SwiftUI ebook + audiobook reading app, structurally faithful to Amazon Kindle's reading experience, differentiated by (1) a strong reading-stats layer (streaks, goals, reading vs listening minutes), (2) a pro audiobook player with read-along, and (3) a daily notes-email digest. Books come from free sources (Project Gutenberg EPUB, Internet Archive text) OR from the user importing their own PDF\/EPUB. No store or DRM.\n\n### Authentication (NEW — account-first)\n- The app is gated behind sign-in. `AuthStore` (`@Observable`, GoTrue REST, no SDK) owns the session; tokens persist in the Keychain via `AuthKeychain` and auto-refresh.\n- `SignInView`: Sign in with Apple (primary, native id-token exchange), Continue with Google (web OAuth + PKCE via ASWebAuthenticationSession), and expandable email\/password (sign in \/ create account).\n- Launch flow: restoring → SignInView (signed out) → onboarding (if not completed) → main tabs.\n- You tab shows the signed-in name\/email and a sign-out menu. The daily-email screen auto-fills the recipient from the signed-in account.\n- Provider readiness is external: Supabase Auth must enable Apple + Google with credentials, list redirect `readsync:\/\/auth-callback`, and (for frictionless email) disable Confirm Email. Apple requires the Sign in with Apple entitlement on the bundle ID.\n\n### Reading sources\n1. Search free libraries — Project Gutenberg (full EPUBs) + Internet Archive (plain-text), unified search with filters. Cover artwork URLs saved on download.\n2. Import your own — any PDF or EPUB fro",
+    "requiredReasonAPIs" : [
+
+    ],
+    "reviewContactPhone" : "+91898670471",
+    "servesEUUsers" : false,
+    "supportEmail" : "karanpalan007@gmail.com",
+    "supportName" : "",
+    "supportsAccountDeletion" : false,
+    "usesAccounts" : true,
+    "usesAds" : false,
+    "usesAnalytics" : true,
+    "usesSubscriptions" : true,
+    "usesTracking" : false,
+    "websiteURL" : ""
+  },
+  "generated" : {
+    "lastGeneratedAt" : "2026-06-30T11:48:55.387Z",
+    "metadata" : {
+      "accessibilityHints" : [
+        "Ensure all book reader controls (page turn, font size slider, brightness, sleep timer) expose VoiceOver accessibility labels and traits.",
+        "The audiobook player play\/pause, skip, speed, and voice-selector controls should have descriptive accessibility labels.",
+        "The reading stats dashboard (streaks, goals, minutes charts) should expose data values as accessibility values, not only visually.",
+        "The sign-in screen buttons (Sign in with Apple, Continue with Google, email fields) should be fully navigable via VoiceOver.",
+        "The daily email screen input field should have a clear accessibilityLabel and hint describing its purpose.",
+        "Color-coded streak and goal indicators should not rely on color alone to convey state."
+      ],
+      "accessibilityRecommended" : true,
+      "ageRatingHints" : [
+        "Cartoon or Fantasy Violence: None",
+        "Realistic Violence: None",
+        "Prolonged Graphic or Sadistic Realistic Violence: None",
+        "Profanity or Crude Humor: None",
+        "Mature\/Suggestive Themes: None",
+        "Horror\/Fear Themes: None",
+        "Sexual Content or Nudity: None",
+        "Graphic Sexual Content and Nudity: None",
+        "Alcohol, Tobacco, or Drug Use or References: None",
+        "Simulated Gambling: None",
+        "Medical\/Treatment Information: None",
+        "Contests: None",
+        "Unrestricted Web Access: No",
+        "Gambling and Contests: No",
+        "AI-Generated Content: Infrequent\/Mild"
+      ],
+      "appPrivacyEntries" : [
+        {
+          "category" : "Contact Info",
+          "dataType" : "Email Address",
+          "linked" : true,
+          "purposes" : [
+            "App Functionality"
+          ],
+          "reason" : "Email required for Supabase Auth sign-in and account management.",
+          "tracking" : false
+        },
+        {
+          "category" : "Identifiers",
+          "dataType" : "User ID",
+          "linked" : true,
+          "purposes" : [
+            "App Functionality"
+          ],
+          "reason" : "User ID from Supabase Auth backend for account session management.",
+          "tracking" : false
+        },
+        {
+          "category" : "Usage Data",
+          "dataType" : "Product Interaction",
+          "linked" : false,
+          "purposes" : [
+            "Analytics"
+          ],
+          "reason" : "Analytics integrated to track app usage and reading interactions.",
+          "tracking" : false
+        },
+        {
+          "category" : "Diagnostics",
+          "dataType" : "Crash Data",
+          "linked" : false,
+          "purposes" : [
+            "Analytics"
+          ],
+          "reason" : "Analytics service collects crash and performance diagnostic data.",
+          "tracking" : false
+        },
+        {
+          "category" : "Purchases",
+          "dataType" : "Purchase History",
+          "linked" : true,
+          "purposes" : [
+            "App Functionality"
+          ],
+          "reason" : "StoreKit subscription tracking for pro audiobook player and premium features.",
+          "tracking" : false
+        },
+        {
+          "category" : "User Content",
+          "dataType" : "Other User Content",
+          "linked" : true,
+          "purposes" : [
+            "App Functionality"
+          ],
+          "reason" : "App processes user-imported PDFs\/EPUBs and reading notes for daily digest emails.",
+          "tracking" : false
+        }
+      ],
+      "appStoreDescription" : "ReadSync is a calm, premium place to read or listen to any book — and your progress follows you across both.\n\nStart a chapter on the page during your commute, switch to narration while you cook, then come back to reading at night. ReadSync keeps your place in sync, so you never lose your spot whether your eyes or your ears are doing the work.\n\nBuild a real reading habit. ReadSync quietly tracks every minute you read and every minute you listen, then turns them into streaks, weekly goals, and all-time totals you can actually feel proud of.\n\nWHY READSYNC\n\nRead or listen to any book, your way. A clean reader for the page and a focused audiobook player with adjustable speed, multiple voices, a sleep timer, and read-along highlighting.\n\nProgress synced across both. Switch between reading and listening anytime — your place carries over automatically.\n\nSee every minute add up. Weekly goals, day streaks, and reading versus listening breakdowns keep you motivated without the noise.\n\nFind your next read. Search real books from Project Gutenberg and the Internet Archive and send them straight to your library, or import your own PDF and EPUB files.\n\nAI study notes. Let ReadSync turn your highlights and notes into concise study summaries, delivered to your inbox each morning.\n\nA daily notes email. Get the highlights you save delivered to your inbox every morning, so the ideas that matter actually stick.\n\nDesigned to disappear. A warm, paper-and-ink interface that puts the words first and gets out of your way.\n\nReadSync is built for people who love books and want a quieter, more thoughtful way to read more of them. No clutter, no noise — just you and the next great chapter.\n\nDownload ReadSync and turn every spare minute into reading time.",
+      "categorySuggestions" : [
+        "Primary: Books (Education > Books)",
+        "Secondary: Education"
+      ],
+      "demoAccountChecklist" : [
+        "Create a test email\/password account directly from the sign-in screen.",
+        "Confirm the account receives the onboarding flow after first sign-in.",
+        "Verify reading stats, streaks, and goals are visible after opening a book.",
+        "Test the daily email digest by entering a valid email address in the designated screen.",
+        "Test subscription purchase flow using a Sandbox Apple ID."
+      ],
+      "keywords" : [
+        "ebook reader",
+        "audiobook",
+        "epub",
+        "pdf reader",
+        "reading tracker",
+        "reading streak",
+        "gutenberg",
+        "study notes"
+      ],
+      "promotionalText" : "Read or listen — your place syncs automatically. Build streaks, hit goals, and never lose a page.",
+      "reviewNotes" : [
+        "The app requires an account to use. You may create a test account using email and password from the sign-in screen — no invite code is needed.",
+        "Sign in with Apple and Sign in with Google are available on the sign-in screen. Email\/password sign-up is accessible via the expandable section on the same screen.",
+        "The daily email digest feature requires a valid email address entered in the app. It uses Resend for delivery.",
+        "AI study notes are generated via OpenAI and require an active internet connection.",
+        "Books can be discovered via the in-app search (Project Gutenberg \/ Internet Archive) or imported as PDF\/EPUB from Files.",
+        "Subscription unlocks additional features. Sandbox environment purchase testing is available with a Sandbox Apple ID.",
+        "The app does not use the camera, microphone, photo library, contacts, or location services.",
+        "No web URL for the app or legal entity was supplied — reviewer may note the absence of a marketing or privacy policy URL in metadata."
+      ],
+      "reviewerContactChecklist" : [
+        "No dedicated reviewer contact email was provided in the facts — add a support or reviewer contact email in App Store Connect before submission.",
+        "No legal entity name was provided — ensure the seller name in App Store Connect is correct.",
+        "No website URL was provided — add a marketing URL or support URL in App Store Connect.",
+        "No privacy policy URL was provided — a hosted privacy policy URL is required for App Store submission."
+      ]
+    },
+    "model" : "claude-sonnet-4-6",
+    "privacy" : {
+      "intro" : [
+        "ReadSync is a reading and audiobook app that helps you build a lasting reading habit. This Privacy Policy explains what information we collect when you use ReadSync, how we use it, and the choices available to you.",
+        "By creating an account or using the app, you agree to the practices described in this policy. If you do not agree, please discontinue use of ReadSync."
+      ],
+      "sections" : [
+        {
+          "bullets" : [
+            "Account information: your email address and display name, collected when you create an account via email\/password, Sign in with Apple, or Continue with Google.",
+            "Reading and listening activity: books you open, pages read, minutes spent reading or listening, streaks, and goals you set.",
+            "Imported content metadata: titles and file names of PDF or EPUB files you import. File contents are processed locally on your device and are not uploaded to our servers.",
+            "Notes and highlights: annotations you save within a book, which may be included in your daily email digest.",
+            "Subscription and purchase information: records of active or past subscriptions processed through Apple's App Store.",
+            "Usage and diagnostic data: app interactions, feature usage patterns, and crash reports collected to improve app performance.",
+            "Email delivery data: the email address you designate for your daily notes digest, used solely to deliver that digest via Resend."
+          ],
+          "paragraphs" : [
+            "We collect information you provide directly, information generated by your use of the app, and technical data necessary to operate the service."
+          ],
+          "title" : "Information We Collect"
+        },
+        {
+          "bullets" : [
+            "To authenticate your account and keep your session secure across devices.",
+            "To sync your reading position, progress statistics, streaks, and goals.",
+            "To generate AI-powered study notes from your reading content using OpenAI.",
+            "To send your daily notes email digest to the address you provide.",
+            "To process and validate your in-app subscription through Apple's StoreKit.",
+            "To analyze aggregate usage patterns so we can improve features and fix bugs.",
+            "To respond to support requests you submit."
+          ],
+          "paragraphs" : [
+            "We use the information we collect for the following purposes:"
+          ],
+          "title" : "How We Use Information"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "We use Supabase as our backend provider for authentication, database storage, and Edge Functions. Your account credentials and reading data are stored in Supabase's infrastructure. Sessions are secured using tokens stored in your device's Keychain.",
+            "We use OpenAI's API to generate AI study notes from content you choose to process. Text submitted for note generation is transmitted to OpenAI subject to OpenAI's privacy and data-use policies.",
+            "We use Resend to deliver your daily notes email digest. Your designated email address is shared with Resend solely for the purpose of delivering that digest.",
+            "We use analytics tooling to collect anonymized, aggregated usage data. This data helps us understand how features are used and identify areas for improvement. It is not linked to your identity for advertising purposes.",
+            "We do not use advertising SDKs or share data for third-party advertising or cross-app tracking."
+          ],
+          "title" : "Product And Technical Data"
+        },
+        {
+          "bullets" : [
+            "Service providers: Supabase (infrastructure and authentication), OpenAI (AI note generation), Resend (email delivery), and our analytics provider — each receiving only the data necessary to perform their function.",
+            "Apple: subscription and purchase information is processed by Apple's App Store infrastructure.",
+            "Legal requirements: we may disclose information if required by law, court order, or to protect the rights and safety of our users or the public.",
+            "Business transfers: if ReadSync is acquired or merged, your information may be transferred as part of that transaction."
+          ],
+          "paragraphs" : [
+            "We do not sell your personal information. We share data only in the limited circumstances described below."
+          ],
+          "title" : "How We Share Information"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "We retain your account and reading data for as long as your account remains active. If you sign out or stop using the app, your data remains stored until you request deletion.",
+            "To request deletion of your account and associated data, please contact us using the information in the Contact section below. We will process your request within a reasonable time frame and confirm when deletion is complete."
+          ],
+          "title" : "Data Retention"
+        },
+        {
+          "bullets" : [
+            "Email digest: you can disable the daily notes email at any time within the app's settings.",
+            "AI notes: submitting content to OpenAI for note generation is an action you initiate; you can simply not use the feature.",
+            "Account data: you may request access to or deletion of your personal data by contacting us.",
+            "Analytics: aggregate usage analytics help us maintain and improve the app. Specific opt-out options depend on your device's system settings."
+          ],
+          "paragraphs" : [
+            "You have the following choices regarding your data:"
+          ],
+          "title" : "Your Choices"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "ReadSync is not directed at children under the age of 13, and we do not knowingly collect personal information from children under 13. If we learn that we have collected data from a child under 13 without verified parental consent, we will delete it promptly.",
+            "If you believe a child has provided us with personal information, please contact us so we can take appropriate action."
+          ],
+          "title" : "Children's Privacy"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us. Because certain contact details were not provided at the time this policy was generated, please refer to the support page within the ReadSync app for current contact information.",
+            "We will respond to privacy inquiries within a reasonable time frame."
+          ],
+          "title" : "Contact"
+        }
+      ],
+      "title" : "ReadSync Privacy Policy"
+    },
+    "support" : {
+      "intro" : [
+        "We want your ReadSync experience to be smooth and enjoyable. If you run into a problem or have a question, this page explains how to get help and what to expect."
+      ],
+      "sections" : [
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "To contact the ReadSync support team, please use the support link available within the app's settings, or reach out through the contact information listed on the app's App Store page.",
+            "Please note that a dedicated support email address was not specified at the time this page was generated. Check the app's current settings screen or App Store listing for the most up-to-date contact details."
+          ],
+          "title" : "How To Reach Support"
+        },
+        {
+          "bullets" : [
+            "Your device model and iOS version (e.g., iPhone 15, iOS 17.4).",
+            "The ReadSync app version (found in the App Store under your purchases, or in Settings > About).",
+            "A clear description of what you were trying to do and what happened instead.",
+            "Steps to reproduce the issue if it occurs consistently.",
+            "Any relevant screenshots or screen recordings, if possible."
+          ],
+          "paragraphs" : [
+            "To help us resolve your issue as quickly as possible, please include the following in your message:"
+          ],
+          "title" : "What To Include In Your Request"
+        },
+        {
+          "bullets" : [
+            "Sign in with Apple: ensure that your Apple ID has not revoked ReadSync's permissions. Check Settings > Apple ID > Password & Security > Apps Using Apple ID.",
+            "Sign in with Google: if the OAuth flow fails, try again with a stable internet connection. Make sure you complete the in-app browser prompt without closing it early.",
+            "Email and password: double-check your credentials. Use the password reset option if you have forgotten your password.",
+            "If your account appears to have data missing, ensure you are signed in with the same provider and email you used originally.",
+            "For persistent access issues, contact support with the details listed in the section above."
+          ],
+          "paragraphs" : [
+            "If you are unable to sign in or access your account, here are some steps to try first:"
+          ],
+          "title" : "Account And Access Issues"
+        },
+        {
+          "bullets" : [
+            "To manage, pause, or cancel your subscription: go to Settings > Apple ID > Subscriptions on your iPhone.",
+            "To request a refund: visit reportaproblem.apple.com and follow Apple's refund process.",
+            "If you believe a subscription was charged in error, or if a purchase is not reflected in the app, contact us with your Apple Order ID and we will investigate."
+          ],
+          "paragraphs" : [
+            "ReadSync subscriptions are managed entirely through Apple's App Store. We do not process payments directly and cannot issue refunds on Apple's behalf."
+          ],
+          "title" : "Billing And Subscription Help"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "You have the right to request access to or deletion of the personal data we hold about you. To submit a data access or deletion request, contact us via the support channel within the app and include the email address associated with your account.",
+            "We will acknowledge your request promptly and process it within a reasonable time frame. Note that certain data may be retained for the minimum period required by law or for legitimate operational purposes."
+          ],
+          "title" : "Privacy And Data Requests"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "We aim to respond to all support requests within 2–3 business days. Complex issues, such as account recovery or data requests, may take a little longer. We appreciate your patience and will keep you updated on the status of your request."
+          ],
+          "title" : "Response Expectations"
+        }
+      ],
+      "title" : "ReadSync Support"
+    },
+    "terms" : {
+      "intro" : [
+        "These Terms of Service govern your access to and use of ReadSync. Please read them carefully before creating an account or using the app.",
+        "By using ReadSync, you agree to be bound by these Terms. If you do not agree, do not use the app."
+      ],
+      "sections" : [
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "ReadSync is a native iOS reading and audiobook application that allows you to read and listen to books from free public-domain sources (Project Gutenberg, Internet Archive) or from files you import yourself. The app provides reading statistics, goal tracking, AI-generated study notes, and a daily email digest of your highlights and notes.",
+            "You may use ReadSync for personal, non-commercial purposes only. You must comply with all applicable laws and these Terms when using the service."
+          ],
+          "title" : "Use Of The Service"
+        },
+        {
+          "bullets" : [
+            "You agree to provide accurate and current information when creating your account.",
+            "You must notify us immediately of any unauthorized access to your account.",
+            "We reserve the right to suspend or terminate accounts that violate these Terms."
+          ],
+          "paragraphs" : [
+            "To use ReadSync, you must create an account. You may sign in with Apple, sign in with Google, or register with an email address and password. You are responsible for maintaining the confidentiality of your credentials and for all activity that occurs under your account.",
+            "You must be at least 13 years old to use ReadSync. By creating an account, you represent that you meet this age requirement."
+          ],
+          "title" : "Accounts And Eligibility"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "ReadSync may offer optional paid subscription tiers that unlock additional features. Subscriptions are billed through Apple's App Store and are subject to Apple's payment terms. All purchases are final unless Apple's refund policies apply.",
+            "Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current billing period. You can manage or cancel your subscription in your Apple ID account settings.",
+            "Pricing is set and displayed within the App Store. We reserve the right to change subscription pricing with reasonable notice, in accordance with App Store guidelines."
+          ],
+          "title" : "Subscriptions And Billing"
+        },
+        {
+          "bullets" : [
+            "Violates any applicable local, national, or international law or regulation.",
+            "Infringes the intellectual property rights of any third party.",
+            "Attempts to reverse-engineer, decompile, or extract the source code of the app.",
+            "Interferes with or disrupts the integrity or performance of ReadSync or its infrastructure.",
+            "Uploads or imports content that is illegal, harmful, or that you do not have the right to use.",
+            "Uses the AI note generation feature to process content in violation of OpenAI's usage policies."
+          ],
+          "paragraphs" : [
+            "You agree not to use ReadSync in any manner that:"
+          ],
+          "title" : "Acceptable Use"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "ReadSync and its original content, features, and functionality are the property of the app's developer. All rights are reserved.",
+            "Books sourced from Project Gutenberg and the Internet Archive are in the public domain or are otherwise freely licensed. ReadSync does not claim ownership over public-domain content.",
+            "Content you import (your own PDFs and EPUBs) remains your property. You represent that you have the right to import and use any content you add to the app.",
+            "AI-generated study notes are produced from content you choose to submit. You are responsible for ensuring you have appropriate rights to the underlying content before submitting it for AI processing."
+          ],
+          "title" : "Intellectual Property"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "ReadSync is provided on an \"as is\" and \"as available\" basis without warranties of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement.",
+            "We do not warrant that the app will be uninterrupted, error-free, or free of viruses or other harmful components. AI-generated notes are automated outputs and may contain errors or inaccuracies; they are not a substitute for your own judgment.",
+            "Public-domain content sourced from Project Gutenberg and the Internet Archive is provided as-is; we make no representations regarding its completeness or accuracy."
+          ],
+          "title" : "Disclaimers"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "To the fullest extent permitted by applicable law, the developers of ReadSync shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of the app, even if advised of the possibility of such damages.",
+            "Our total aggregate liability to you for any claim arising out of or related to these Terms or the service shall not exceed the amount you paid for ReadSync subscriptions in the twelve months preceding the claim, or $10.00, whichever is greater."
+          ],
+          "title" : "Limitation Of Liability"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "We may suspend or terminate your access to ReadSync at any time, with or without cause, and with or without notice, if we believe you have violated these Terms or applicable law.",
+            "You may stop using ReadSync at any time. If you wish to delete your account and associated data, please contact us as described in the support page within the app.",
+            "Upon termination, your right to use the app ceases immediately. Provisions of these Terms that by their nature should survive termination will do so."
+          ],
+          "title" : "Termination"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "We may update these Terms from time to time. When we do, we will update the effective date at the top of this page. For material changes, we will endeavor to provide reasonable notice, such as a notification within the app.",
+            "Your continued use of ReadSync after changes take effect constitutes your acceptance of the updated Terms."
+          ],
+          "title" : "Changes To These Terms"
+        },
+        {
+          "bullets" : [
+
+          ],
+          "paragraphs" : [
+            "If you have questions about these Terms, please reach out via the support page within the ReadSync app. Because certain legal entity details were not available at the time this document was generated, please refer to the app for current contact information."
+          ],
+          "title" : "Contact"
+        }
+      ],
+      "title" : "ReadSync Terms of Service"
+    },
+    "warnings" : [
+      "No privacy policy URL was provided. A publicly hosted privacy policy URL is required by Apple before App Store submission. Host the generated policy and add the URL to App Store Connect.",
+      "No support email or contact email was provided. App Store Connect requires a support URL or email. Add one before submitting.",
+      "No legal entity name or company name was provided. Verify the seller name in App Store Connect is accurate before submission.",
+      "No website or marketing URL was provided. While not strictly required, its absence may cause friction during review. Consider adding one.",
+      "supportsAccountDeletion is false, but the app uses accounts. Apple requires that apps with account creation also offer in-app account deletion (App Store Review Guideline 5.1.1). Implement an account deletion flow before submission.",
+      "OpenAI processes user-submitted reading content for AI note generation. Confirm with OpenAI's current API data usage policy whether this content is used for model training, and disclose appropriately in the privacy policy if needed.",
+      "The project summary was truncated in the facts JSON (ends mid-sentence at 'import your own PDF\/EPUB fro'). Verify no critical features were omitted from the submission copy."
+    ]
+  },
+  "lastASCClassificationAt" : "2026-07-07T20:27:01Z",
+  "lastASCClassificationHash" : "e5d0f7cd21787f2caf9072cfb0760971ae038739102560454d0291723858e6e4",
+  "publish" : {
+    "isPublished" : false,
+    "lastPublishedSlug" : "",
+    "locale" : "en-US",
+    "publicSlug" : "readsync"
+  },
+  "releaseNotes" : ""
+}

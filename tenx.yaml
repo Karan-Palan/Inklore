@@ -1,0 +1,141 @@
+schemaVersion: 1
+
+project:
+  artifacts:
+    ios:
+      path: ios
+    services:
+      path: services
+    backend:
+      path: backend
+
+appServices:
+  enabled: true
+  mode: backend-attached
+  provider: neon
+  database:
+    provider: neon
+    migrations: services/db/migrations
+    policies: services/db/policies
+    seeds: services/db/seeds
+    rlsRequired: true
+    dataApi:
+      enabled: true
+  auth:
+    provider: tenx-managed-better-auth
+    enabled: true
+    methods:
+      emailPassword: true
+      apple: true
+      google: true
+    oauth:
+      additionalProviders: []
+    session:
+      iosTokenBridge: true
+  storage:
+    provider: r2
+    storageClass: standard
+    metadata:
+      provider: neon
+      table: storage.objects
+    signer:
+      provider: tenx-managed-storage-signer
+      defaultUrlTtlSeconds: 900
+    buckets:
+      - name: photos
+        public: false
+        maxFileSizeMB: 10
+        allowedMimeTypes:
+          - image/jpeg
+          - image/png
+          - image/webp
+      - name: attachments
+        public: false
+        maxFileSizeMB: 50
+        allowedMimeTypes:
+          - image/jpeg
+          - image/png
+          - image/webp
+          - application/pdf
+      - name: book_files
+        public: false
+        maxFileSizeMB: 100
+        allowedMimeTypes:
+          - application/pdf
+          - application/epub+zip
+          - application/octet-stream
+  clients:
+    ios:
+      authFacade: ios/Generated/TenxAuth.swift
+      dataFacade: ios/Generated/TenxData.swift
+      storageFacade: ios/Generated/TenxStorage.swift
+
+backend:
+  enabled: true
+  product: paid
+  billing:
+    overagePolicy: none
+    spendCapCents: 2000
+    capAction: throttle
+  mode: app
+  runtime:
+    kind: python
+    framework: fastapi
+    version: "3.13"
+  app:
+    image:
+      context: backend
+      dockerfile: backend/Dockerfile
+    service:
+      command: "uvicorn app.main:app --host 0.0.0.0 --port 8080"
+      port: 8080
+      healthCheck:
+        path: /healthz
+        timeoutSeconds: 5
+        intervalSeconds: 30
+      websocket: false
+    scale:
+      minMachines: 0
+      maxMachines: 1
+      autoscale:
+        enabled: false
+        autoStart: true
+        autoStop: suspend
+        includedRunningHoursPerMonth: 20
+        maxMonthlySpendCents: 2000
+      timeoutSeconds: 10
+      monthlyRequestLimit: 10000
+      clientExposedTableLimit: 5
+      maxConcurrency: 5
+    routes:
+      - name: create_summary
+        path: /api/v1/summaries
+        method: POST
+        handler: app.routes.ai.router
+        auth: none
+      - name: create_narration
+        path: /api/v1/narration
+        method: POST
+        handler: app.routes.ai.router
+        auth: none
+      - name: daily_digest
+        path: /api/v1/daily-digest
+        method: POST
+        handler: app.routes.daily_digest.router
+        auth: required
+      - name: digest_preferences
+        path: /api/v1/digest/preferences
+        method: POST
+        handler: app.routes.daily_digest.router
+        auth: required
+    jobs:
+      - name: daily_digest_cron
+        schedule: "0 8 * * *"
+        timezone: UTC
+        command: "python -m app.jobs.daily_digest_job"
+        timeoutSeconds: 120
+        concurrency: skip
+  clients:
+    openapi: backend/openapi.yaml
+    ios:
+      output: ios/Generated/BackendClient.swift
