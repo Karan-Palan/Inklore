@@ -7,6 +7,7 @@ subscriber by the scheduled cron job in app/jobs/daily_digest_job.py.
 from fastapi import FastAPI
 
 from app.routes import ai, cron, daily_digest, link_import, video_summaries
+from app.schema import ensure_runtime_schema_safely
 
 app = FastAPI(title="Inkflow Backend")
 
@@ -15,6 +16,11 @@ app.include_router(ai.router)
 app.include_router(link_import.router)
 app.include_router(video_summaries.router)
 app.include_router(cron.router)
+
+
+@app.on_event("startup")
+def ensure_database_schema() -> None:
+    ensure_runtime_schema_safely()
 
 
 @app.get("/healthz")

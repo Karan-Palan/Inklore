@@ -126,7 +126,44 @@ struct ChapterSummarySection: Identifiable, Equatable {
 /// deliberate local fallback while the AI endpoint is not wired: it never
 /// invents book facts, works offline, and only uses the imported chapter text.
 enum ChapterSummaryContent {
+  /// Chapter extraction can parse an entire EPUB spine and is requested by
+  /// several SwiftUI views during one render pass. Cache a bounded handful of
+  /// immutable imports so tab changes and animations do not reread every file.
+  private final class SectionCacheBox: NSObject {
+    let sections: [ChapterSummarySection]
+    init(_ sections: [ChapterSummarySection]) { self.sections = sections }
+  }
+
+  private final class MarkdownCacheBox: NSObject {
+    let markdown: String
+    init(_ markdown: String) { self.markdown = markdown }
+  }
+
+  private static let sectionCache: NSCache<NSString, SectionCacheBox> = {
+    let cache = NSCache<NSString, SectionCacheBox>()
+    cache.countLimit = 8
+    cache.totalCostLimit = 24 * 1_024 * 1_024
+    return cache
+  }()
+
+  private static let markdownCache: NSCache<NSString, MarkdownCacheBox> = {
+    let cache = NSCache<NSString, MarkdownCacheBox>()
+    cache.countLimit = 160
+    return cache
+  }()
+
   static func sections(for book: Book) -> [ChapterSummarySection] {
+    let cacheKey = NSString(
+      string: "\(book.id.uuidString):\(book.formatRaw):\(book.epubFolderName):\(book.storedText.utf16.count):\(book.chapters.count)")
+    if let cached = sectionCache.object(forKey: cacheKey) { return cached.sections }
+
+    let extracted = uncachedSections(for: book)
+    let cost = extracted.reduce(0) { $0 + $1.text.utf16.count * 2 }
+    sectionCache.setObject(SectionCacheBox(extracted), forKey: cacheKey, cost: cost)
+    return extracted
+  }
+
+  private static func uncachedSections(for book: Book) -> [ChapterSummarySection] {
     if book.isEpub, !book.epubFolderName.isEmpty,
       let document = EpubDocument(folderName: book.epubFolderName)
     {
@@ -180,8 +217,12 @@ enum ChapterSummaryContent {
   }
 
   static func markdown(for section: ChapterSummarySection) -> String {
+    let key = NSString(string: "\(section.id):\(section.text.utf16.count)")
+    if let cached = markdownCache.object(forKey: key) { return cached.markdown }
     let source = summaryBody(in: section.text, chapterTitle: section.title)
-    return conciseMarkdown(title: section.title, source: source, fallback: source)
+    let rendered = conciseMarkdown(title: section.title, source: source, fallback: source)
+    markdownCache.setObject(MarkdownCacheBox(rendered), forKey: key)
+    return rendered
   }
 
   /// The summary contract everywhere in the app: one chapter heading followed
@@ -207,7 +248,8 @@ enum ChapterSummaryContent {
       let withoutMarkdown = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#>-• \t"))
       guard !withoutMarkdown.isEmpty,
         withoutMarkdown.lowercased() != normalizedTitle,
-        !trimmed.hasPrefix("#")
+        !trimmed.hasPrefix("#"),
+        !isBoilerplate(withoutMarkdown)
       else { return nil }
       return withoutMarkdown
     }
@@ -235,14 +277,15 @@ enum ChapterSummaryContent {
   }
 
   private static func selectTwoSentences(from sentences: [String]) -> [String] {
-    guard let opening = sentences.first else { return [] }
-    let keywords = frequentTerms(in: sentences.joined(separator: " "))
-    let ranked = sentences.enumerated().sorted { lhs, rhs in
+    let useful = sentences.filter(isUsefulSentence)
+    guard !useful.isEmpty else { return [] }
+    let keywords = frequentTerms(in: useful.joined(separator: " "))
+    let ranked = useful.enumerated().sorted { lhs, rhs in
       sentenceScore(lhs.element, keywords: keywords, position: lhs.offset)
         > sentenceScore(rhs.element, keywords: keywords, position: rhs.offset)
     }
-    let second = ranked.map(\.element).first { $0 != opening } ?? sentences.dropFirst().first ?? opening
-    return [opening, second]
+    let winners = Array(ranked.prefix(2)).sorted { $0.offset < $1.offset }.map(\.element)
+    return winners.count == 1 ? [winners[0], winners[0]] : winners
   }
 
   private static func structuredSections(for book: Book) -> [ChapterSummarySection] {
@@ -324,7 +367,9 @@ enum ChapterSummaryContent {
       let value = limited[range]
         .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
-      if value.count >= 12, value.count <= 300 { result.append(value) }
+      if value.count >= 12, value.count <= 300, !isBoilerplate(value) {
+        result.append(value)
+      }
     }
     if result.isEmpty {
       let fallback = limited
@@ -356,8 +401,32 @@ enum ChapterSummaryContent {
   private static func sentenceScore(_ sentence: String, keywords: [String], position: Int) -> Double {
     let lower = sentence.lowercased()
     let hits = keywords.prefix(8).reduce(0) { $0 + (lower.contains($1) ? 1 : 0) }
-    let openingBonus = position == 0 ? 2.5 : 0
+    // Position is only a tie-breaker. The previous large opening bonus caused
+    // tables of contents and publisher notices to beat the actual chapter.
+    let openingBonus = position == 0 ? 0.35 : 0
     return Double(hits) + openingBonus - Double(sentence.count) / 1_000
+  }
+
+  private static func isUsefulSentence(_ sentence: String) -> Bool {
+    guard !isBoilerplate(sentence) else { return false }
+    let words = sentence.split { !$0.isLetter && !$0.isNumber }
+    return words.count >= 6
+  }
+
+  /// Imported PDFs commonly prepend a table of contents and append publishing
+  /// notices to a detected chapter. Those are valid source text but never a
+  /// useful two-line recap, so remove them before ranking—not after rendering.
+  private static func isBoilerplate(_ text: String) -> Bool {
+    let lower = text.lowercased()
+    let blockedPhrases = [
+      "all rights reserved", "copyright", "cover design", "cover copyright",
+      "published by", "publishing group", "trademark", "newsletter", "isbn",
+      "library of congress", "www.", "http://", "https://",
+    ]
+    if blockedPhrases.contains(where: lower.contains) { return true }
+    let ruleMarkers = lower.components(separatedBy: "rule #").count - 1
+    if ruleMarkers >= 2 { return true }
+    return false
   }
 }
 

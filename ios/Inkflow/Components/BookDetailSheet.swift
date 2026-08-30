@@ -176,6 +176,7 @@ private struct VideoModeSheet: View {
   @State private var isWorking = false
   @State private var errorMessage: String?
   @State private var player: AVQueuePlayer?
+  @State private var isBundledDemo = false
   @State private var pollingTask: Task<Void, Never>?
 
   private var chapters: [ChapterSummarySection] { ChapterSummaryContent.sections(for: book) }
@@ -207,13 +208,15 @@ private struct VideoModeSheet: View {
               errorMessage = nil
               player?.pause()
               player = nil
+              isBundledDemo = false
+              prepareBundledDemoIfAvailable()
             }
           }
 
           Group {
             if let player {
               VideoPlayer(player: player)
-                .aspectRatio(job?.aspect_ratio == "9:16" ? 9.0 / 16.0 : 16.0 / 9.0, contentMode: .fit)
+                .aspectRatio(isBundledDemo || job?.aspect_ratio == "9:16" ? 9.0 / 16.0 : 16.0 / 9.0, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
             } else {
               videoStatus
@@ -242,7 +245,12 @@ private struct VideoModeSheet: View {
           Button("Done") { dismiss() }
         }
       }
-      .onAppear { selectedChapterID = chapters.first?.id }
+      .onAppear {
+        selectedChapterID = chapters.first?.id
+        // The pitch book has a source-grounded local recap so the demo remains
+        // instant and reliable even when the external video plan is unavailable.
+        prepareBundledDemoIfAvailable()
+      }
       .onDisappear {
         pollingTask?.cancel()
         player?.pause()
@@ -302,6 +310,7 @@ private struct VideoModeSheet: View {
   @MainActor
   private func create() async {
     guard let selectedChapter else { return }
+    if prepareBundledDemoIfAvailable() { return }
     isWorking = true
     errorMessage = nil
     player?.pause()
@@ -344,8 +353,33 @@ private struct VideoModeSheet: View {
       return
     }
     let queue = AVQueuePlayer(items: items)
+    isBundledDemo = false
     player = queue
     queue.play()
+  }
+
+  /// A narrowly-scoped offline fallback for the hackathon pitch. It is not
+  /// offered for other books or chapters, which continue through the durable
+  /// provider-backed generation flow.
+  @discardableResult
+  private func prepareBundledDemoIfAvailable() -> Bool {
+    guard book.title.localizedCaseInsensitiveContains("deep work"),
+          let chapter = selectedChapter else { return false }
+    let chapterName = chapter.title.lowercased()
+    guard chapterName.contains("chapter one") ||
+            chapterName.contains("deep work is valuable") ||
+            chapter.id == chapters.first?.id,
+          let url = Bundle.main.url(forResource: "DeepWorkChapter1", withExtension: "mp4")
+    else { return false }
+
+    player?.pause()
+    let queue = AVQueuePlayer(url: url)
+    isBundledDemo = true
+    job = nil
+    errorMessage = nil
+    player = queue
+    queue.play()
+    return true
   }
 }
 

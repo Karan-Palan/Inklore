@@ -1,10 +1,10 @@
-ReadSync is a calm, premium place to read or listen to any book — and your progress follows you across both.
+Inkflow is a calm, premium place to read or listen to any book — and your progress follows you across both.
 
-Start a chapter on the page during your commute, switch to narration while you cook, then come back to reading at night. ReadSync keeps your place in sync, so you never lose your spot whether your eyes or your ears are doing the work.
+Start a chapter on the page during your commute, switch to narration while you cook, then come back to reading at night. Inkflow keeps your place in sync, so you never lose your spot whether your eyes or your ears are doing the work.
 
-Build a real reading habit. ReadSync quietly tracks every minute you read and every minute you listen, then turns them into streaks, weekly goals, and all-time totals you can actually feel proud of.
+Build a real reading habit. Inkflow quietly tracks every minute you read and every minute you listen, then turns them into streaks, weekly goals, and all-time totals you can actually feel proud of.
 
-WHY READSYNC
+WHY INKFLOW
 
 Read or listen to any book, your way. A clean reader for the page and a focused audiobook player with adjustable speed, multiple voices, a sleep timer, and read-along.
 
@@ -18,6 +18,6 @@ A daily notes email. Get the highlights and notes you have saved delivered to yo
 
 Designed to disappear. A warm, paper-and-ink interface that puts the words first and gets out of your way.
 
-ReadSync is built for people who love books and want a quieter, more thoughtful way to read more of them. No clutter, no noise — just you and the next great chapter.
+Inkflow is built for people who love books and want a quieter, more thoughtful way to read more of them. No clutter, no noise — just you and the next great chapter.
 
-Download ReadSync and turn every spare minute into reading time.
+Download Inkflow and turn every spare minute into reading time.

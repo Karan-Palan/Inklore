@@ -50,9 +50,6 @@ struct ReaderView: View {
 
         pageLayer(in: geo.size)
 
-        // Tap zones for page turning + chrome toggle.
-        tapZones
-
         if showChrome { chromeOverlay }
 
         // Brightness dimming overlay (visual in-reader brightness).
@@ -188,6 +185,13 @@ struct ReaderView: View {
             activeHighlight = hit
             UISelectionFeedbackGenerator().selectionChanged()
           }
+        },
+        onTapZone: { zone in
+          switch zone {
+          case .left: turn(-1)
+          case .center: toggleChrome()
+          case .right: turn(1)
+          }
         }
       )
       .id(pageIndex)
@@ -197,23 +201,6 @@ struct ReaderView: View {
       ProgressView()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-  }
-
-  private var tapZones: some View {
-    HStack(spacing: 0) {
-      Color.clear.contentShape(Rectangle())
-        .onTapGesture { turn(-1) }
-        .frame(maxWidth: .infinity)
-      Color.clear.contentShape(Rectangle())
-        .onTapGesture { toggleChrome() }
-        .frame(width: 90)
-      Color.clear.contentShape(Rectangle())
-        .onTapGesture { turn(1) }
-        .frame(maxWidth: .infinity)
-    }
-    .ignoresSafeArea()
-    // Don't swallow touches over the selection toolbar.
-    .allowsHitTesting(selection == nil)
   }
 
   @ViewBuilder
@@ -397,6 +384,7 @@ struct ReaderView: View {
       chapterTitle: chapterTitle(at: range.location), startOffset: range.location,
       endOffset: range.location + range.length, book: book)
     context.insert(h)
+    try? context.save()
     selection = nil
     UINotificationFeedbackGenerator().notificationOccurred(.success)
   }

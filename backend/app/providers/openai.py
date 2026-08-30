@@ -72,44 +72,61 @@ def generate_json(
     """Generate provider-validated JSON through the Responses API."""
     if not settings.openai_api_key:
         raise OpenAIProviderError("OPENAI_API_KEY is not configured")
-    try:
-        response = httpx.post(
-            RESPONSES_URL,
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": settings.openai_model,
-                "reasoning": {"effort": settings.openai_reasoning_effort},
-                "instructions": instructions,
-                "input": input_text,
-                "max_output_tokens": max_output_tokens,
-                "text": {
-                    "format": {
-                        "type": "json_schema",
-                        "name": schema_name,
-                        "strict": True,
-                        "schema": schema,
-                    }
+    last_error: Exception | None = None
+    # High-effort reasoning consumes part of the response budget. Retry once
+    # with a larger budget when the provider reports an incomplete response or
+    # returns JSON cut off mid-string; this keeps durable video jobs recoverable.
+    for budget in (max_output_tokens, min(max_output_tokens * 2, 24_000)):
+        try:
+            response = httpx.post(
+                RESPONSES_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
                 },
-                "store": False,
-            },
-            timeout=90,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        parts = [
-            content["text"]
-            for item in payload.get("output", [])
-            if item.get("type") == "message"
-            for content in item.get("content", [])
-            if content.get("type") == "output_text" and content.get("text")
-        ]
-        result = json.loads("\n".join(parts))
-    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-        log.error("OpenAI structured generation failed: %s", exc)
-        raise OpenAIProviderError("OpenAI structured generation failed") from exc
+                json={
+                    "model": settings.openai_model,
+                    "reasoning": {"effort": settings.openai_reasoning_effort},
+                    "instructions": instructions,
+                    "input": input_text,
+                    "max_output_tokens": budget,
+                    "text": {
+                        "format": {
+                            "type": "json_schema",
+                            "name": schema_name,
+                            "strict": True,
+                            "schema": schema,
+                        }
+                    },
+                    "store": False,
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            parts = [
+                content["text"]
+                for item in payload.get("output", [])
+                if item.get("type") == "message"
+                for content in item.get("content", [])
+                if content.get("type") == "output_text" and content.get("text")
+            ]
+            if payload.get("status") == "incomplete":
+                raise ValueError(
+                    f"incomplete response: {payload.get('incomplete_details', {})}"
+                )
+            result = json.loads("\n".join(parts))
+            break
+        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+            last_error = exc
+            log.warning(
+                "OpenAI structured generation attempt with budget %s failed: %s",
+                budget,
+                exc,
+            )
+    else:
+        log.error("OpenAI structured generation failed after retry: %s", last_error)
+        raise OpenAIProviderError("OpenAI structured generation failed") from last_error
     if not isinstance(result, dict):
         raise OpenAIProviderError("OpenAI returned invalid structured output")
     return result

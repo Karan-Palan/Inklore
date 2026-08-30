@@ -7,6 +7,8 @@ targets:
     sources:
       - path: Inkflow
       - path: Generated
+    resources:
+      - path: Inkflow/Resources/DeepWorkChapter1.mp4
 
 
     settings:
@@ -18,6 +20,7 @@ targets:
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 2XHK8UG356
         SWIFT_EMIT_LOC_STRINGS: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Inkflow/Inkflow.entitlements

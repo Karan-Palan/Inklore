@@ -1,11 +1,11 @@
-# ReadSync
+# Inkflow
 
 Built with [10x](https://10x.app). Edit this README freely — 10x
 will not overwrite it once you've made changes.
 
 ## Run it
 
-Open `ios/ReadSync.xcodeproj` in Xcode (16.0+, iOS 26 SDK) and
+Open `ios/Inkflow.xcodeproj` in Xcode (16.0+, iOS 26 SDK) and
 press ⌘R to build and run.
 
 ## Project layout
@@ -23,7 +23,7 @@ press ⌘R to build and run.
 
 ## Bundle
 
-`app.10x.readsync`
+`app.10x.inkflow`
 
 ## AI and narration configuration
 
@@ -35,7 +35,8 @@ Never add these keys to the Xcode scheme or app bundle.
   `OPENAI_MODEL=gpt-5.6-luna` and `OPENAI_REASONING_EFFORT=xhigh`.
 - ElevenLabs narration uses the speech-with-timestamps API so character timing
   can drive synchronized highlighting. Set `ELEVENLABS_API_KEY`, then choose
-  `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID` when the voice is approved.
+  `ELEVENLABS_VOICE_ID`; `ELEVENLABS_MODEL_ID=eleven_multilingual_v2` is the
+  default audiobook model and can still be overridden server-side.
 - Until provider keys are present, summaries retain their grounded on-device
   fallback and audiobook playback retains the on-device system voices.
 

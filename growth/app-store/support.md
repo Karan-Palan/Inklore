@@ -1,10 +1,10 @@
-# ReadSync Support
+# Inkflow Support
 
-We want your ReadSync experience to be smooth and enjoyable. If you run into a problem or have a question, this page explains how to get help and what to expect.
+We want your Inkflow experience to be smooth and enjoyable. If you run into a problem or have a question, this page explains how to get help and what to expect.
 
 ## How To Reach Support
 
-To contact the ReadSync support team, please use the support link available within the app's settings, or reach out through the contact information listed on the app's App Store page.
+To contact the Inkflow support team, please use the support link available within the app's settings, or reach out through the contact information listed on the app's App Store page.
 
 Please note that a dedicated support email address was not specified at the time this page was generated. Check the app's current settings screen or App Store listing for the most up-to-date contact details.
 
@@ -13,7 +13,7 @@ Please note that a dedicated support email address was not specified at the time
 To help us resolve your issue as quickly as possible, please include the following in your message:
 
 - Your device model and iOS version (e.g., iPhone 15, iOS 17.4).
-- The ReadSync app version (found in the App Store under your purchases, or in Settings > About).
+- The Inkflow app version (found in the App Store under your purchases, or in Settings > About).
 - A clear description of what you were trying to do and what happened instead.
 - Steps to reproduce the issue if it occurs consistently.
 - Any relevant screenshots or screen recordings, if possible.
@@ -22,7 +22,7 @@ To help us resolve your issue as quickly as possible, please include the followi
 
 If you are unable to sign in or access your account, here are some steps to try first:
 
-- Sign in with Apple: ensure that your Apple ID has not revoked ReadSync's permissions. Check Settings > Apple ID > Password & Security > Apps Using Apple ID.
+- Sign in with Apple: ensure that your Apple ID has not revoked Inkflow's permissions. Check Settings > Apple ID > Password & Security > Apps Using Apple ID.
 - Sign in with Google: if the OAuth flow fails, try again with a stable internet connection. Make sure you complete the in-app browser prompt without closing it early.
 - Email and password: double-check your credentials. Use the password reset option if you have forgotten your password.
 - If your account appears to have data missing, ensure you are signed in with the same provider and email you used originally.
@@ -30,7 +30,7 @@ If you are unable to sign in or access your account, here are some steps to try 
 
 ## Billing And Subscription Help
 
-ReadSync subscriptions are managed entirely through Apple's App Store. We do not process payments directly and cannot issue refunds on Apple's behalf.
+Inkflow subscriptions are managed entirely through Apple's App Store. We do not process payments directly and cannot issue refunds on Apple's behalf.
 
 - To manage, pause, or cancel your subscription: go to Settings > Apple ID > Subscriptions on your iPhone.
 - To request a refund: visit reportaproblem.apple.com and follow Apple's refund process.

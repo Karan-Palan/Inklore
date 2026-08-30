@@ -4,6 +4,8 @@ import UIKit
 /// A single, non-scrolling reader page rendered with UITextView so the user gets
 /// native text selection (for highlights/notes) and a justified, paginated look.
 struct ReaderPageView: UIViewRepresentable {
+  enum TapZone { case left, center, right }
+
   let attributed: NSAttributedString
   let pageRange: NSRange
   let highlights: [(range: NSRange, color: UIColor)]
@@ -13,6 +15,10 @@ struct ReaderPageView: UIViewRepresentable {
   var accessibilityPageDescription: String? = nil
   /// Fired when the reader taps inside an existing highlight (global char index).
   var onTapHighlight: ((_ globalIndex: Int) -> Void)? = nil
+  /// Page navigation is handled by the text view's non-cancelling tap
+  /// recognizer so an invisible SwiftUI overlay never steals long presses from
+  /// native text selection.
+  var onTapZone: ((TapZone) -> Void)? = nil
 
   func makeUIView(context: Context) -> UITextView {
     let tv = UITextView()
@@ -88,9 +94,7 @@ struct ReaderPageView: UIViewRepresentable {
     init(_ parent: ReaderPageView) { self.parent = parent }
 
     @objc func handleTap(_ gesture: UITapGestureRecognizer) {
-      guard let tv = textView, tv.selectedRange.length == 0,
-        let onTapHighlight = parent.onTapHighlight
-      else { return }
+      guard let tv = textView, tv.selectedRange.length == 0 else { return }
       let point = gesture.location(in: tv)
       let layout = tv.layoutManager
       let container = tv.textContainer
@@ -101,7 +105,20 @@ struct ReaderPageView: UIViewRepresentable {
       let charIndex = layout.characterIndexForGlyph(at: glyphIndex)
       let global = parent.pageRange.location + charIndex
       let hit = parent.highlights.contains { NSLocationInRange(global, $0.range) }
-      if hit { onTapHighlight(global) }
+      if hit, let onTapHighlight = parent.onTapHighlight {
+        onTapHighlight(global)
+        return
+      }
+
+      guard let onTapZone = parent.onTapZone else { return }
+      let zoneFraction = point.x / max(tv.bounds.width, 1)
+      if zoneFraction < 0.3 {
+        onTapZone(.left)
+      } else if zoneFraction > 0.7 {
+        onTapZone(.right)
+      } else {
+        onTapZone(.center)
+      }
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {

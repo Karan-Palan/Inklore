@@ -1,8 +1,8 @@
-# ReadSync Privacy Policy
+# Inkflow Privacy Policy
 
-ReadSync is a reading and audiobook app that helps you build a lasting reading habit. This Privacy Policy explains what information we collect when you use ReadSync, how we use it, and the choices available to you.
+Inkflow is a reading and audiobook app that helps you build a lasting reading habit. This Privacy Policy explains what information we collect when you use Inkflow, how we use it, and the choices available to you.
 
-By creating an account or using the app, you agree to the practices described in this policy. If you do not agree, please discontinue use of ReadSync.
+By creating an account or using the app, you agree to the practices described in this policy. If you do not agree, please discontinue use of Inkflow.
 
 ## Information We Collect
 
@@ -47,7 +47,7 @@ We do not sell your personal information. We share data only in the limited circ
 - Service providers: Supabase (infrastructure and authentication), OpenAI (AI note generation), Resend (email delivery), and our analytics provider — each receiving only the data necessary to perform their function.
 - Apple: subscription and purchase information is processed by Apple's App Store infrastructure.
 - Legal requirements: we may disclose information if required by law, court order, or to protect the rights and safety of our users or the public.
-- Business transfers: if ReadSync is acquired or merged, your information may be transferred as part of that transaction.
+- Business transfers: if Inkflow is acquired or merged, your information may be transferred as part of that transaction.
 
 ## Data Retention
 
@@ -66,12 +66,12 @@ You have the following choices regarding your data:
 
 ## Children's Privacy
 
-ReadSync is not directed at children under the age of 13, and we do not knowingly collect personal information from children under 13. If we learn that we have collected data from a child under 13 without verified parental consent, we will delete it promptly.
+Inkflow is not directed at children under the age of 13, and we do not knowingly collect personal information from children under 13. If we learn that we have collected data from a child under 13 without verified parental consent, we will delete it promptly.
 
 If you believe a child has provided us with personal information, please contact us so we can take appropriate action.
 
 ## Contact
 
-If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us. Because certain contact details were not provided at the time this policy was generated, please refer to the support page within the ReadSync app for current contact information.
+If you have questions about this Privacy Policy or wish to exercise your data rights, please contact us. Because certain contact details were not provided at the time this policy was generated, please refer to the support page within the Inkflow app for current contact information.
 
 We will respond to privacy inquiries within a reasonable time frame.

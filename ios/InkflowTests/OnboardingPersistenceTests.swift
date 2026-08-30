@@ -2,11 +2,20 @@ import SwiftData
 import UIKit
 import XCTest
 
-@testable import ReadSync
+@testable import Inkflow
 
 @MainActor
 final class OnboardingPersistenceTests: XCTestCase {
   func testSavePersistsSelectionsRecommendationsAndGoal() throws {
+    let defaults = UserDefaults.standard
+    let previousCompletionFlag = defaults.object(forKey: OnboardingFlag.key)
+    defer {
+      if let previousCompletionFlag {
+        defaults.set(previousCompletionFlag, forKey: OnboardingFlag.key)
+      } else {
+        defaults.removeObject(forKey: OnboardingFlag.key)
+      }
+    }
     let schema = Schema([ReaderProfile.self, ReadingGoal.self])
     let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [configuration])
@@ -28,7 +37,7 @@ final class OnboardingPersistenceTests: XCTestCase {
 
     let profiles = try context.fetch(FetchDescriptor<ReaderProfile>())
     XCTAssertEqual(profiles.count, 1)
-    XCTAssertEqual(profiles[0].hasCompletedOnboarding, true)
+    XCTAssertEqual(profiles[0].hasCompletedOnboarding, false)
     XCTAssertEqual(profiles[0].consumeMode, .listening)
     XCTAssertEqual(profiles[0].dailyMinutesTarget, 45)
     XCTAssertEqual(profiles[0].weeklyMinutesTarget, 225)
@@ -39,6 +48,9 @@ final class OnboardingPersistenceTests: XCTestCase {
     XCTAssertEqual(goals.count, 1)
     XCTAssertEqual(goals[0].dailyMinutesTarget, 45)
     XCTAssertEqual(goals[0].weeklyMinutesTarget, 225)
+
+    try OnboardingPersistence.finalizeOnboarding(in: context)
+    XCTAssertEqual(profiles[0].hasCompletedOnboarding, true)
   }
 
   func testSaveUpsertsInsteadOfCreatingDuplicateProfileOrGoal() throws {
@@ -90,5 +102,97 @@ final class OnboardingPersistenceTests: XCTestCase {
     }
     XCTAssertEqual(
       paginator.pageIndex(for: (text as NSString).length + 10), paginator.pageCount - 1)
+  }
+
+  func testNativeReaderPositionsMirrorIntoTheCanonicalTextOffset() {
+    let text = String(repeating: "x", count: 1_000)
+    let epub = Book(
+      title: "EPUB", author: "Author", bookDescription: "", category: "",
+      coverHexStart: 0, coverHexEnd: 0, storedText: text, format: .epub, spineCount: 4)
+    epub.spineIndex = 1
+    epub.chapterScroll = 0.5
+
+    // A native-only position from a previous release still opens at the same
+    // place, then gets persisted as the shared read/listen anchor.
+    XCTAssertEqual(epub.canonicalCharacterOffset, 375)
+    epub.restoreCanonicalCharacterOffset()
+    XCTAssertEqual(epub.charOffset, 375)
+
+    XCTAssertTrue(
+      epub.updateEpubPosition(spineIndex: 2, scroll: 0.25, spineCount: 4))
+    XCTAssertEqual(epub.charOffset, 562)
+    XCTAssertEqual(epub.progress, 0.562, accuracy: 0.001)
+
+    // An old reader view must not overwrite a newer player checkpoint.
+    XCTAssertTrue(epub.updateCharacterOffset(800))
+    XCTAssertFalse(epub.updateEpubPosition(spineIndex: 1, scroll: 0.5, spineCount: 4))
+    XCTAssertEqual(epub.charOffset, 800)
+    XCTAssertEqual(epub.spineIndex, 2)
+
+    XCTAssertTrue(
+      epub.updateEpubPosition(
+        spineIndex: 3, scroll: 0.96, spineCount: 4, allowingBackward: true))
+    XCTAssertTrue(epub.isFinished)
+    XCTAssertTrue(
+      epub.updateEpubPosition(
+        spineIndex: 0, scroll: 0, spineCount: 4, allowingBackward: true))
+    XCTAssertEqual(epub.canonicalCharacterOffset, 0)
+    XCTAssertFalse(epub.isFinished)
+  }
+
+  func testPdfAndAudioHandoffsCannotRollBackProgress() {
+    let text = String(repeating: "x", count: 1_000)
+    let pdf = Book(
+      title: "PDF", author: "Author", bookDescription: "", category: "",
+      coverHexStart: 0, coverHexEnd: 0, storedText: text, format: .pdf, pdfPageCount: 10)
+    pdf.pdfPageIndex = 3
+
+    XCTAssertEqual(pdf.canonicalCharacterOffset, 300)
+    pdf.restoreCanonicalCharacterOffset()
+    XCTAssertEqual(pdf.charOffset, 300)
+
+    // Audio can retain its precise offset while also updating the nearest
+    // native PDF page that the visual reader needs to restore.
+    XCTAssertTrue(pdf.updateCharacterOffset(780))
+    XCTAssertTrue(
+      pdf.updatePdfPosition(pageIndex: 7, pageCount: 10, characterOffset: 780))
+    XCTAssertEqual(pdf.charOffset, 780)
+    XCTAssertEqual(pdf.pdfPageIndex, 7)
+    XCTAssertEqual(pdf.progress, 0.78, accuracy: 0.001)
+
+    XCTAssertFalse(pdf.updatePdfPosition(pageIndex: 3, pageCount: 10))
+    XCTAssertEqual(pdf.charOffset, 780)
+    XCTAssertEqual(pdf.pdfPageIndex, 7)
+
+    // A seek to the beginning must replace both the text anchor and the
+    // native locator; the legacy native fallback must not resurrect progress.
+    pdf.isFinished = true
+    XCTAssertTrue(pdf.updateCharacterOffset(0, allowingBackward: true))
+    XCTAssertTrue(
+      pdf.updatePdfPosition(
+        pageIndex: 0, pageCount: 10, characterOffset: 0, allowingBackward: true))
+    XCTAssertEqual(pdf.canonicalCharacterOffset, 0)
+    XCTAssertEqual(pdf.pdfPageIndex, 0)
+    XCTAssertFalse(pdf.isFinished)
+  }
+
+  func testChapterSummaryRejectsContentsAndCopyrightBoilerplate() {
+    let section = ChapterSummarySection(
+      id: "summary-test",
+      title: "Part 2: The Rules",
+      text: """
+        Rule #1: Work Deeply Rule #2: Embrace Boredom Rule #3: Quit Social Media
+        Copyright © 2016 by Example Author. Cover design by Example Studio.
+        Deep work trains the mind to concentrate without distraction for demanding tasks.
+        Protecting deliberate blocks of attention makes difficult work more consistent and valuable.
+        """,
+      startOffset: 0,
+      endOffset: 400)
+
+    let markdown = ChapterSummaryContent.markdown(for: section)
+    XCTAssertTrue(markdown.contains("Deep work trains the mind"))
+    XCTAssertTrue(markdown.contains("Protecting deliberate blocks"))
+    XCTAssertFalse(markdown.localizedCaseInsensitiveContains("copyright"))
+    XCTAssertFalse(markdown.contains("Rule #1"))
   }
 }
