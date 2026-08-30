@@ -9,6 +9,8 @@ struct ReaderView: View {
   @Bindable var book: Book
   @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var context
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
   @State private var settings = ReaderSettings()
   @State private var paginator: Paginator?
@@ -33,6 +35,9 @@ struct ReaderView: View {
   @State private var activeHighlight: Highlight?
 
   @State private var openedAt = Date()
+  /// Incrementing this value restarts the deliberately short chrome timeout.
+  /// VoiceOver users retain the controls rather than having them disappear.
+  @State private var chromeVisibilityToken = 0
 
   private var pageInsets: EdgeInsets {
     EdgeInsets(top: 70, leading: settings.margins, bottom: 60, trailing: settings.margins)
@@ -57,7 +62,10 @@ struct ReaderView: View {
           .allowsHitTesting(false)
       }
       .overlay(alignment: .bottom) { selectionToolbarLayer }
-      .onAppear { repaginate(in: geo.size) }
+      .onAppear {
+        repaginate(in: geo.size)
+        scheduleChromeFade()
+      }
       .onChange(of: geo.size) { _, newSize in repaginate(in: newSize) }
       .onChange(of: settings.fontSize) { _, _ in repaginate(in: geo.size) }
       .onChange(of: settings.font) { _, _ in repaginate(in: geo.size) }
@@ -66,6 +74,14 @@ struct ReaderView: View {
       .onChange(of: settings.theme) { _, _ in repaginate(in: geo.size) }
     }
     .statusBarHidden(!showChrome)
+    .task(id: chromeVisibilityToken) {
+      guard showChrome, !voiceOverEnabled else { return }
+      try? await Task.sleep(for: .seconds(4.5))
+      guard !Task.isCancelled, showChrome, selection == nil,
+        !showSettings, !showContents, !showChapterSummary
+      else { return }
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { showChrome = false }
+    }
     .sheet(isPresented: $showSettings) {
       ReaderSettingsSheet(settings: settings)
         .presentationDetents([.height(440)])
@@ -79,7 +95,7 @@ struct ReaderView: View {
       .presentationDetents([.medium, .large])
     }
     .sheet(isPresented: $showChapterSummary) {
-      ChapterSummaryView(book: book, initialOffset: book.charOffset)
+      ChapterSummaryView(book: book, initialOffset: book.canonicalCharacterOffset)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -130,13 +146,14 @@ struct ReaderView: View {
       // Keep reading progress synced to the spoken word and auto-turn pages so
       // the highlighted word stays on screen.
       let target = paginator.pageIndex(for: range.location)
-      if target != pageIndex, paginator.pageRanges.indices.contains(target) {
+      let changedPage = target != pageIndex
+      if changedPage, paginator.pageRanges.indices.contains(target) {
         withAnimation(.easeInOut(duration: 0.2)) { pageIndex = target }
-        book.charOffset = paginator.startOffset(of: target)
-      } else if abs(book.charOffset - range.location) >= 500 {
+      }
+      if abs(book.charOffset - range.location) >= 500 || changedPage {
         // Speech callbacks arrive for every word. Avoid dirtying the SwiftData
         // book object at that rate while still retaining frequent checkpoints.
-        book.charOffset = range.location
+        book.updateCharacterOffset(range.location, allowingBackward: true)
       }
     }
     .onDisappear {
@@ -162,6 +179,7 @@ struct ReaderView: View {
           selection = (text, range)
           UISelectionFeedbackGenerator().selectionChanged()
         },
+        accessibilityPageDescription: "Page \(pageIndex + 1) of \(paginator.pageCount)",
         onTapHighlight: { globalIndex in
           if let hit = book.highlights.first(where: {
             NSLocationInRange(globalIndex, $0.range)
@@ -187,7 +205,7 @@ struct ReaderView: View {
         .onTapGesture { turn(-1) }
         .frame(maxWidth: .infinity)
       Color.clear.contentShape(Rectangle())
-        .onTapGesture { withAnimation(.snappy) { showChrome.toggle() } }
+        .onTapGesture { toggleChrome() }
         .frame(width: 90)
       Color.clear.contentShape(Rectangle())
         .onTapGesture { turn(1) }
@@ -211,7 +229,8 @@ struct ReaderView: View {
           self.selection = nil
           UINotificationFeedbackGenerator().notificationOccurred(.success)
         },
-        onDismiss: { self.selection = nil }
+        onDismiss: { self.selection = nil },
+        shareText: selection.text
       )
       .padding(.bottom, showChrome ? 96 : 36)
       .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -226,78 +245,95 @@ struct ReaderView: View {
       Spacer()
       bottomBar
     }
-    .transition(.opacity)
+    .transition(.opacity.combined(with: .move(edge: .top)))
+    .accessibilityElement(children: .contain)
   }
 
   private var topBar: some View {
-    HStack(spacing: Theme.lg) {
-      Button {
+    HStack(spacing: Theme.sm) {
+      ReaderChromeButton(systemImage: "chevron.left", label: "Back to library") {
         commitProgress()
         dismiss()
-      } label: {
-        Image(systemName: "chevron.left")
       }
-      VStack(spacing: 1) {
-        Text(book.title).font(.subheadline.weight(.semibold)).lineLimit(1)
-        Text(book.author).font(.caption2).foregroundStyle(settings.theme.textColor.opacity(0.6))
+      VStack(alignment: .leading, spacing: 2) {
+        Text(book.title)
+          .font(.subheadline.weight(.semibold))
+          .lineLimit(1)
+        Text(book.author)
+          .font(.caption2)
+          .foregroundStyle(settings.theme.textColor.opacity(0.58))
+          .lineLimit(1)
       }
       .frame(maxWidth: .infinity)
-      Button {
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("\(book.title) by \(book.author)")
+      ReaderChromeButton(systemImage: "list.bullet", label: "Table of contents") {
         showContents = true
-      } label: {
-        Image(systemName: "list.bullet")
       }
       if book.canListen {
-        Button {
+        ReaderChromeButton(
+          systemImage: readAlong ? "text.book.closed.fill" : "text.book.closed",
+          label: readAlong ? "Stop read along" : "Start read along",
+          isActive: readAlong
+        ) {
           toggleReadAlong()
-        } label: {
-          Image(systemName: readAlong ? "text.book.closed.fill" : "text.book.closed")
-            .foregroundStyle(readAlong ? Theme.accent : settings.theme.textColor)
         }
-        Button {
+        ReaderChromeButton(systemImage: "headphones", label: "Open audio player") {
           commitProgress()
           presentPlayer = true
-        } label: {
-          Image(systemName: "headphones")
         }
       }
-      Button {
+      ReaderChromeButton(systemImage: "textformat.size", label: "Reading settings") {
         showSettings = true
-      } label: {
-        Text("Aa").font(.system(size: 19, weight: .bold, design: .serif))
       }
     }
-    .font(.title3.weight(.semibold))
     .foregroundStyle(settings.theme.textColor)
     .padding(.horizontal, Theme.lg)
-    .padding(.vertical, Theme.md)
-    .background(settings.theme.pageBackground.opacity(0.96))
-    .overlay(alignment: .bottom) { Divider().opacity(0.4) }
+    .padding(.vertical, Theme.sm)
+    .background(settings.theme.pageBackground.opacity(0.88))
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .bottom) {
+      Rectangle().fill(settings.theme.textColor.opacity(0.09)).frame(height: 0.5)
+    }
   }
 
   private var bottomBar: some View {
-    VStack(spacing: Theme.sm) {
-      ThinProgressBar(progress: pageProgress)
-        .padding(.horizontal, Theme.lg)
-      HStack {
-        Button {
-          commitProgress()
-          showChapterSummary = true
-        } label: {
-          Label(currentChapterTitle, systemImage: "sparkles")
-            .lineLimit(1)
-        }
-        .buttonStyle(.plain)
-        Spacer()
-        Text("Page \(pageIndex + 1) of \(max(1, paginator?.pageCount ?? 1))")
+    VStack(spacing: Theme.md) {
+      Button {
+        commitProgress()
+        showChapterSummary = true
+      } label: {
+        ReaderProgressFooter(
+          progress: pageProgress,
+          title: currentChapterTitle,
+          detail: "Page \(pageIndex + 1) of \(max(1, paginator?.pageCount ?? 1))",
+          foreground: settings.theme.textColor
+        )
       }
-      .font(.caption.weight(.medium))
-      .foregroundStyle(settings.theme.textColor.opacity(0.6))
-      .padding(.horizontal, Theme.lg)
+      .buttonStyle(.plain)
+      .accessibilityLabel("\(currentChapterTitle), \(Int(pageProgress * 100)) percent complete")
+      .accessibilityHint("Opens chapter notes and summary")
+
+      if book.canListen {
+        ReaderAudioHandoff(
+          title: readAlong ? "Read along is active" : "Listen from this page",
+          progress: pageProgress,
+          foreground: settings.theme.textColor
+        ) {
+          if readAlong { stopReadAlong() }
+          commitProgress()
+          presentPlayer = true
+        }
+      }
     }
-    .padding(.vertical, Theme.md)
-    .background(settings.theme.pageBackground.opacity(0.96))
-    .overlay(alignment: .top) { Divider().opacity(0.4) }
+    .padding(.horizontal, Theme.lg)
+    .padding(.top, Theme.sm)
+    .padding(.bottom, Theme.md)
+    .background(settings.theme.pageBackground.opacity(0.88))
+    .background(.ultraThinMaterial)
+    .overlay(alignment: .top) {
+      Rectangle().fill(settings.theme.textColor.opacity(0.09)).frame(height: 0.5)
+    }
   }
 
   private var pageProgress: Double {
@@ -325,8 +361,9 @@ struct ReaderView: View {
       lineSpacing: settings.lineSpacing,
       size: contentSize
     )
+    book.restoreCanonicalCharacterOffset()
     paginator = p
-    pageIndex = p.pageIndex(for: book.charOffset)
+    pageIndex = p.pageIndex(for: book.canonicalCharacterOffset)
   }
 
   private func turn(_ direction: Int) {
@@ -340,14 +377,16 @@ struct ReaderView: View {
       return
     }
     withAnimation(.easeInOut(duration: 0.18)) { pageIndex = next }
-    book.charOffset = paginator.startOffset(of: next)
+    // A page turn is explicit reader navigation, so going back intentionally
+    // is allowed. Cross-mode commits retain the monotonic default instead.
+    book.updateCharacterOffset(paginator.startOffset(of: next), allowingBackward: true)
     UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.4)
   }
 
   private func goToOffset(_ offset: Int) {
     guard let paginator else { return }
     pageIndex = paginator.pageIndex(for: offset)
-    book.charOffset = offset
+    book.updateCharacterOffset(offset, allowingBackward: true)
   }
 
   // MARK: Actions
@@ -408,10 +447,10 @@ struct ReaderView: View {
       stopReadAlong()
     } else {
       readAlong = true
-      narrator.load(text: book.bodyText, startOffset: book.charOffset)
+      narrator.load(text: book.bodyText, startOffset: book.canonicalCharacterOffset)
       narrator.play()
       listenStartedAt = Date()
-      withAnimation(.snappy) { showChrome = false }
+      withAnimation(reduceMotion ? nil : .snappy) { showChrome = false }
       UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
   }
@@ -420,7 +459,7 @@ struct ReaderView: View {
     guard readAlong else { return }
     readAlong = false
     narrator.stop()
-    book.charOffset = narrator.charOffset
+    book.updateCharacterOffset(narrator.charOffset, allowingBackward: true)
     if let started = listenStartedAt {
       let minutes = Int(Date().timeIntervalSince(started) / 60)
       if minutes >= 1 {
@@ -440,6 +479,106 @@ struct ReaderView: View {
       openedAt = Date()
     }
     try? context.save()
+  }
+
+  private func toggleChrome() {
+    if showChrome {
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showChrome = false }
+    } else {
+      withAnimation(reduceMotion ? nil : .easeIn(duration: 0.2)) { showChrome = true }
+      scheduleChromeFade()
+    }
+  }
+
+  private func scheduleChromeFade() {
+    chromeVisibilityToken &+= 1
+  }
+}
+
+/// A consistent, generously-sized reader action target. The visual treatment is
+/// intentionally quiet so the page remains the primary surface.
+struct ReaderChromeButton: View {
+  let systemImage: String
+  let label: String
+  var isActive = false
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: systemImage)
+        .font(.system(size: 16, weight: .semibold))
+        .frame(width: 36, height: 36)
+        .background(isActive ? Theme.accent.opacity(0.16) : .clear, in: Circle())
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+    .accessibilityAddTraits(isActive ? .isSelected : [])
+  }
+}
+
+/// Shared chapter / completion treatment for text, EPUB, and PDF readers.
+struct ReaderProgressFooter: View {
+  let progress: Double
+  let title: String
+  let detail: String
+  let foreground: Color
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 7) {
+      ThinProgressBar(progress: min(1, max(0, progress)))
+        .frame(height: 3)
+      HStack(alignment: .firstTextBaseline, spacing: Theme.sm) {
+        Label(title, systemImage: "text.book.closed")
+          .lineLimit(1)
+        Spacer(minLength: Theme.sm)
+        Text(detail)
+          .monospacedDigit()
+          .lineLimit(1)
+      }
+      .font(.caption.weight(.medium))
+      .foregroundStyle(foreground.opacity(0.68))
+    }
+  }
+}
+
+/// A compact handoff into the full audio player. It makes the read/listen
+/// relationship visible without turning the reader into a playback screen.
+struct ReaderAudioHandoff: View {
+  let title: String
+  let progress: Double
+  let foreground: Color
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      HStack(spacing: Theme.sm) {
+        Image(systemName: "headphones")
+          .font(.subheadline.weight(.bold))
+          .foregroundStyle(.white)
+          .frame(width: 30, height: 30)
+          .background(Theme.accent, in: Circle())
+        VStack(alignment: .leading, spacing: 1) {
+          Text(title)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+          Text("Continue at \(Int(min(1, max(0, progress)) * 100))%")
+            .font(.caption2)
+            .foregroundStyle(foreground.opacity(0.58))
+        }
+        Spacer(minLength: Theme.sm)
+        Image(systemName: "play.fill")
+          .font(.caption.weight(.bold))
+          .foregroundStyle(Theme.accent)
+      }
+      .foregroundStyle(foreground)
+      .padding(.horizontal, Theme.sm)
+      .padding(.vertical, 7)
+      .background(foreground.opacity(0.07), in: Capsule(style: .continuous))
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("\(title). Continue listening at \(Int(min(1, max(0, progress)) * 100)) percent")
+    .accessibilityHint("Opens the audio player")
   }
 }
 

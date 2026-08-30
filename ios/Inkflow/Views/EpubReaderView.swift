@@ -10,6 +10,8 @@ struct EpubReaderView: View {
   @Bindable var book: Book
   @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var context
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
   @State private var settings = ReaderSettings()
   @State private var document: EpubDocument?
@@ -21,6 +23,7 @@ struct EpubReaderView: View {
   @State private var presentPlayer = false
   @State private var loadFailed = false
   @State private var openedAt = Date()
+  @State private var chromeVisibilityToken = 0
 
   var body: some View {
     ZStack {
@@ -36,7 +39,20 @@ struct EpubReaderView: View {
             let bounded = min(1, max(0, fraction))
             // WebKit reports every pixel while scrolling; updating SwiftUI for
             // each one is unnecessary because persistence is approximate.
-            if abs(scrollFraction - bounded) >= 0.003 { scrollFraction = bounded }
+            if abs(scrollFraction - bounded) >= 0.003 {
+              let movedBackward = bounded < scrollFraction
+              scrollFraction = bounded
+              // Keep the shared text anchor fresh enough for a direct switch
+              // into the player. `commitProgress` writes the final pixel-level
+              // value before any handoff or dismissal.
+              if abs(book.chapterScroll - bounded) >= 0.02 {
+                book.updateEpubPosition(
+                  spineIndex: chapterIndex,
+                  scroll: bounded,
+                  spineCount: document.chapters.count,
+                  allowingBackward: movedBackward)
+              }
+            }
           },
           onTapZone: handleTap
         )
@@ -57,7 +73,16 @@ struct EpubReaderView: View {
         .allowsHitTesting(false)
     }
     .statusBarHidden(!showChrome)
-    .onAppear(perform: load)
+    .onAppear {
+      load()
+      scheduleChromeFade()
+    }
+    .task(id: chromeVisibilityToken) {
+      guard showChrome, !voiceOverEnabled else { return }
+      try? await Task.sleep(for: .seconds(4.5))
+      guard !Task.isCancelled, showChrome, !showSettings, !showContents else { return }
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { showChrome = false }
+    }
     .onDisappear(perform: commitProgress)
     .sheet(isPresented: $showSettings) {
       ReaderSettingsSheet(settings: settings)
@@ -92,18 +117,25 @@ struct EpubReaderView: View {
       return
     }
     document = doc
-    if book.spineCount != doc.chapters.count {
-      book.spineCount = doc.chapters.count
-    }
-    chapterIndex = min(max(0, book.spineIndex), doc.chapters.count - 1)
-    scrollFraction = book.chapterScroll
+    book.restoreCanonicalCharacterOffset()
+    // The shared text offset wins when audio advanced since this reader was
+    // last visible. This also migrates legacy native-only EPUB positions.
+    let locator = book.epubLocatorForCanonicalPosition(spineCount: doc.chapters.count)
+    book.updateEpubPosition(
+      spineIndex: locator.index,
+      scroll: locator.scroll,
+      spineCount: doc.chapters.count,
+      characterOffset: book.canonicalCharacterOffset,
+      allowingBackward: true)
+    chapterIndex = locator.index
+    scrollFraction = locator.scroll
   }
 
   private func handleTap(_ zone: EpubWebView.TapZone) {
     switch zone {
     case .left: turnBack()
     case .right: turnForward()
-    case .center: withAnimation(.snappy) { showChrome.toggle() }
+    case .center: toggleChrome()
     }
   }
 
@@ -123,15 +155,23 @@ struct EpubReaderView: View {
     commitProgress()
     chapterIndex = index
     scrollFraction = 0
-    book.spineIndex = index
-    book.chapterScroll = 0
+    // Selecting a chapter is deliberate navigation, including backwards.
+    book.updateEpubPosition(
+      spineIndex: index,
+      scroll: 0,
+      spineCount: document.chapters.count,
+      allowingBackward: true)
   }
 
   private func commitProgress() {
-    book.spineIndex = chapterIndex
-    book.chapterScroll = scrollFraction
-    if let document, chapterIndex == document.chapters.count - 1, scrollFraction > 0.92 {
-      book.isFinished = true
+    if let document {
+      // A reader view underneath the player may disappear later with an old
+      // local scroll position. The default monotonic write prevents that stale
+      // callback from rolling back a newer listening checkpoint.
+      book.updateEpubPosition(
+        spineIndex: chapterIndex,
+        scroll: scrollFraction,
+        spineCount: document.chapters.count)
     }
     logSession()
     try? context.save()
@@ -148,37 +188,43 @@ struct EpubReaderView: View {
 
   private var chromeOverlay: some View {
     VStack {
-      HStack(spacing: Theme.lg) {
-        Button {
+      HStack(spacing: Theme.sm) {
+        ReaderChromeButton(systemImage: "chevron.left", label: "Back to library") {
           commitProgress()
           dismiss()
-        } label: {
-          Image(systemName: "chevron.left")
         }
-        Spacer()
-        Button {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(book.title)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+          Text(document?.chapters[safe: chapterIndex]?.title ?? "Chapter \(chapterIndex + 1)")
+            .font(.caption2)
+            .foregroundStyle(settings.theme.textColor.opacity(0.58))
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        ReaderChromeButton(systemImage: "list.bullet", label: "Table of contents") {
           showContents = true
-        } label: {
-          Image(systemName: "list.bullet")
         }
         if book.canListen {
-          Button {
+          ReaderChromeButton(systemImage: "headphones", label: "Open audio player") {
+            commitProgress()
             presentPlayer = true
-          } label: {
-            Image(systemName: "headphones")
           }
         }
-        Button {
+        ReaderChromeButton(systemImage: "textformat.size", label: "Reading settings") {
           showSettings = true
-        } label: {
-          Image(systemName: "textformat.size")
         }
       }
-      .font(.title3.weight(.semibold))
       .foregroundStyle(settings.theme.chromeTint)
       .padding(.horizontal, Theme.lg)
-      .padding(.vertical, Theme.md)
+      .padding(.vertical, Theme.sm)
+      .background(settings.theme.pageBackground.opacity(0.86))
       .background(.ultraThinMaterial)
+      .overlay(alignment: .bottom) {
+        Rectangle().fill(settings.theme.textColor.opacity(0.09)).frame(height: 0.5)
+      }
 
       Spacer()
 
@@ -187,22 +233,53 @@ struct EpubReaderView: View {
   }
 
   private var footer: some View {
-    VStack(spacing: 6) {
-      ProgressView(value: book.progress)
-        .tint(Theme.accent)
-      HStack {
-        Text(document?.chapters[safe: chapterIndex]?.title ?? book.title)
-          .lineLimit(1)
-        Spacer()
-        Text("\(Int(book.progress * 100))% · ch \(chapterIndex + 1) of \(max(book.spineCount, 1))")
+    VStack(spacing: Theme.md) {
+      ReaderProgressFooter(
+        progress: readingProgress,
+        title: document?.chapters[safe: chapterIndex]?.title ?? book.title,
+        detail: "\(Int(readingProgress * 100))% · Ch. \(chapterIndex + 1) of \(max(book.spineCount, 1))",
+        foreground: settings.theme.textColor
+      )
+
+      if book.canListen {
+        ReaderAudioHandoff(
+          title: "Listen from this chapter",
+          progress: readingProgress,
+          foreground: settings.theme.textColor
+        ) {
+          commitProgress()
+          presentPlayer = true
+        }
       }
-      .font(.caption)
-      .foregroundStyle(settings.theme.textColor.opacity(0.7))
     }
     .padding(.horizontal, Theme.lg)
     .padding(.top, Theme.sm)
-    .padding(.bottom, Theme.xl)
+    .padding(.bottom, Theme.md)
+    .background(settings.theme.pageBackground.opacity(0.86))
     .background(.ultraThinMaterial)
+    .overlay(alignment: .top) {
+      Rectangle().fill(settings.theme.textColor.opacity(0.09)).frame(height: 0.5)
+    }
+  }
+
+  private var readingProgress: Double {
+    guard let document, !document.chapters.isEmpty else { return book.progress }
+    let progress = (Double(chapterIndex) + min(1, max(0, scrollFraction)))
+      / Double(document.chapters.count)
+    return min(1, max(0, progress))
+  }
+
+  private func toggleChrome() {
+    if showChrome {
+      withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { showChrome = false }
+    } else {
+      withAnimation(reduceMotion ? nil : .easeIn(duration: 0.2)) { showChrome = true }
+      scheduleChromeFade()
+    }
+  }
+
+  private func scheduleChromeFade() {
+    chromeVisibilityToken &+= 1
   }
 
   private var failureState: some View {

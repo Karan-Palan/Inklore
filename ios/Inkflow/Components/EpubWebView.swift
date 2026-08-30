@@ -26,6 +26,8 @@ struct EpubWebView: UIViewRepresentable {
     webView.backgroundColor = .clear
     webView.scrollView.backgroundColor = .clear
     webView.scrollView.contentInsetAdjustmentBehavior = .never
+    webView.accessibilityLabel = "EPUB chapter"
+    webView.accessibilityHint = "Swipe to read. Tap the center of the page to show reader controls."
 
     // Tap zones: left third = back, right third = forward, center = chrome.
     let tap = UITapGestureRecognizer(
@@ -77,26 +79,29 @@ struct EpubWebView: UIViewRepresentable {
       let theme = parent.settings.theme
       let bg = theme.pageBackground.hexString
       let fg = theme.textColor.hexString
+      let accent = Theme.accent.hexString
       let size = Int(parent.settings.fontSize)
       let margin = Int(parent.settings.margins)
       let lineHeight = 1.4 + Double(parent.settings.lineSpacing) / 20.0
       let family = parent.settings.font.cssFamily
 
       let css = """
-        var s = document.getElementById('readsync-style') || document.createElement('style');
-        s.id = 'readsync-style';
+        var s = document.getElementById('inkflow-style') || document.createElement('style');
+        s.id = 'inkflow-style';
         s.innerHTML = `
-          html { -webkit-text-size-adjust: none; }
+          html { -webkit-text-size-adjust: none; background: \(bg) !important; }
           html, body { background: \(bg) !important; color: \(fg) !important;
             font-family: \(family) !important; font-size: \(size)px !important;
             line-height: \(lineHeight) !important;
-            padding: 56px \(margin)px 96px \(margin)px !important; margin: 0 !important;
-            -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+            padding: 78px \(margin)px 124px \(margin)px !important; margin: 0 auto !important;
+            max-width: 44rem; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+            font-kerning: normal; letter-spacing: 0.004em;
             word-wrap: break-word; overflow-wrap: break-word; hyphens: auto; }
           p { color: \(fg) !important; margin: 0 0 0.85em 0 !important;
             text-align: justify; orphans: 2; widows: 2; }
           div, span, li, td, blockquote, section { color: \(fg) !important; }
           a { color: \(fg) !important; text-decoration: none; }
+          ::selection { background: \(accent)66; color: \(fg); }
           img, svg, image, figure { max-width: 100% !important; height: auto !important;
             display: block; margin: 1em auto !important; border-radius: 4px; }
           h1,h2,h3,h4,h5,h6 { color: \(fg) !important; line-height: 1.25 !important;

@@ -127,6 +127,13 @@ struct ChapterSummarySection: Identifiable, Equatable {
 /// invents book facts, works offline, and only uses the imported chapter text.
 enum ChapterSummaryContent {
   static func sections(for book: Book) -> [ChapterSummarySection] {
+    if book.isEpub, !book.epubFolderName.isEmpty,
+      let document = EpubDocument(folderName: book.epubFolderName)
+    {
+      let epubSections = epubSections(for: book, document: document)
+      if !epubSections.isEmpty { return epubSections }
+    }
+
     if book.storedText.isEmpty, !book.chapters.isEmpty {
       return structuredSections(for: book)
     }
@@ -164,49 +171,78 @@ enum ChapterSummaryContent {
   static func section(for book: Book, offset: Int) -> ChapterSummarySection? {
     let candidates = sections(for: book)
     guard !candidates.isEmpty else { return nil }
+    if book.isEpub, candidates.indices.contains(book.spineIndex) {
+      return candidates[book.spineIndex]
+    }
     let safeOffset = max(0, offset)
     return candidates.first { safeOffset >= $0.startOffset && safeOffset < $0.endOffset }
       ?? candidates.last
   }
 
   static func markdown(for section: ChapterSummarySection) -> String {
-    let sentences = sentenceList(from: section.text)
-    guard !sentences.isEmpty else {
-      return """
-        # \(section.title)
+    let source = summaryBody(in: section.text, chapterTitle: section.title)
+    return conciseMarkdown(title: section.title, source: source, fallback: source)
+  }
 
-        No extractable text was found for this chapter yet.
+  /// The summary contract everywhere in the app: one chapter heading followed
+  /// by exactly two short, source-grounded sentences. AI output is normalized
+  /// through the same renderer so a verbose provider response cannot reintroduce
+  /// the old multi-section guide UI.
+  static func markdown(for section: ChapterSummarySection, generatedText: String?) -> String {
+    guard let generatedText, !generatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    else { return markdown(for: section) }
+    return conciseMarkdown(
+      title: section.title,
+      source: summaryBody(in: generatedText, chapterTitle: section.title),
+      fallback: summaryBody(in: section.text, chapterTitle: section.title))
+  }
 
-        > Try re-importing the source with text recognition enabled.
-        """
+  private static func summaryBody(in text: String, chapterTitle: String) -> String {
+    let normalizedTitle = chapterTitle
+      .lowercased()
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    let keptLines = text.components(separatedBy: .newlines).compactMap { line -> String? in
+      let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !trimmed.isEmpty else { return nil }
+      let withoutMarkdown = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "#>-• \t"))
+      guard !withoutMarkdown.isEmpty,
+        withoutMarkdown.lowercased() != normalizedTitle,
+        !trimmed.hasPrefix("#")
+      else { return nil }
+      return withoutMarkdown
+    }
+    return keptLines.joined(separator: " ")
+  }
+
+  private static func conciseMarkdown(title: String, source: String, fallback: String) -> String {
+    var sentences = sentenceList(from: source)
+    if sentences.count < 2 {
+      sentences += sentenceList(from: fallback).filter { candidate in
+        !sentences.contains(candidate)
+      }
+    }
+    if sentences.isEmpty {
+      sentences = [
+        "No extractable text was found for this chapter yet.",
+        "Try re-importing the source with text recognition enabled.",
+      ]
+    } else if sentences.count == 1 {
+      sentences.append("The available text is brief, so this summary stays close to the chapter's opening idea.")
     }
 
-    let keywords = frequentTerms(in: section.text)
+    let selected = selectTwoSentences(from: sentences)
+    return "# \(title)\n\n\(selected.joined(separator: "\n\n"))"
+  }
+
+  private static func selectTwoSentences(from sentences: [String]) -> [String] {
+    guard let opening = sentences.first else { return [] }
+    let keywords = frequentTerms(in: sentences.joined(separator: " "))
     let ranked = sentences.enumerated().sorted { lhs, rhs in
       sentenceScore(lhs.element, keywords: keywords, position: lhs.offset)
         > sentenceScore(rhs.element, keywords: keywords, position: rhs.offset)
     }
-    var chosenIndices = Set(ranked.prefix(4).map(\.offset))
-    chosenIndices.insert(0)
-    let keySentences = chosenIndices.sorted().prefix(4).map { sentences[$0] }
-    let overview = sentences[0]
-    let takeaway = ranked.first?.element ?? overview
-    let themes = keywords.prefix(5).map { "`\($0.capitalized)`" }.joined(separator: " · ")
-
-    var lines = [
-      "# \(section.title)",
-      "",
-      "## In brief",
-      overview,
-      "",
-      "## Key ideas",
-    ]
-    lines.append(contentsOf: keySentences.map { "- \($0)" })
-    if !themes.isEmpty {
-      lines.append(contentsOf: ["", "## Themes", themes])
-    }
-    lines.append(contentsOf: ["", "## Takeaway", "> \(takeaway)"])
-    return lines.joined(separator: "\n")
+    let second = ranked.map(\.element).first { $0 != opening } ?? sentences.dropFirst().first ?? opening
+    return [opening, second]
   }
 
   private static func structuredSections(for book: Book) -> [ChapterSummarySection] {
@@ -219,6 +255,21 @@ enum ChapterSummaryContent {
         id: "\(book.id.uuidString)-\(offset)",
         title: chapter.title,
         text: chapter.paragraphs.joined(separator: "\n\n"),
+        startOffset: offset,
+        endOffset: offset + length)
+    }
+  }
+
+  private static func epubSections(for book: Book, document: EpubDocument) -> [ChapterSummarySection] {
+    var offset = 0
+    return document.chapters.enumerated().map { index, chapter in
+      let text = document.text(for: chapter)
+      let length = (text as NSString).length
+      defer { offset += length + (index == document.chapters.count - 1 ? 0 : 2) }
+      return ChapterSummarySection(
+        id: "\(book.id.uuidString)-epub-\(index)",
+        title: chapter.title,
+        text: text,
         startOffset: offset,
         endOffset: offset + length)
     }
@@ -273,13 +324,13 @@ enum ChapterSummaryContent {
       let value = limited[range]
         .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
-      if value.count >= 35, value.count <= 360 { result.append(value) }
+      if value.count >= 12, value.count <= 300 { result.append(value) }
     }
     if result.isEmpty {
       let fallback = limited
         .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
-      if !fallback.isEmpty { result.append(String(fallback.prefix(360))) }
+      if !fallback.isEmpty { result.append(String(fallback.prefix(280))) }
     }
     return result
   }
@@ -416,9 +467,87 @@ struct ChapterSummaryMarkdownView: View {
   }
 }
 
+/// A book-first summary sheet used by the Notes tab. It deliberately exposes
+/// every detected source chapter at once: a heading and two-sentence recap are
+/// quicker to scan than the former long-form guide sections.
+struct BookSummaryListView: View {
+  @Bindable var book: Book
+  let initialOffset: Int
+  @Environment(\.dismiss) private var dismiss
+
+  private var sections: [ChapterSummarySection] { ChapterSummaryContent.sections(for: book) }
+  private var activeSectionID: String? {
+    ChapterSummaryContent.section(for: book, offset: initialOffset)?.id
+  }
+
+  var body: some View {
+    NavigationStack {
+      Group {
+        if sections.isEmpty {
+          ContentUnavailableView {
+            Label("No chapter text", systemImage: "doc.text.magnifyingglass")
+          } description: {
+            Text("Inkflow needs extractable chapter text to create summaries.")
+          }
+        } else {
+          ScrollView {
+            LazyVStack(alignment: .leading, spacing: Theme.md) {
+              VStack(alignment: .leading, spacing: Theme.xs) {
+                Text("\(sections.count) DETECTED \(sections.count == 1 ? "CHAPTER" : "CHAPTERS")")
+                  .font(.caption.weight(.bold))
+                  .tracking(1)
+                  .foregroundStyle(Theme.inkFaint)
+                Text("A short return to every chapter.")
+                  .font(.title3.weight(.bold))
+                  .foregroundStyle(Theme.ink)
+              }
+              .padding(.bottom, Theme.xs)
+
+              ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
+                VStack(alignment: .leading, spacing: Theme.md) {
+                  HStack {
+                    Text("CHAPTER \(index + 1)")
+                      .font(.system(size: 10, weight: .bold))
+                      .tracking(1)
+                      .foregroundStyle(section.id == activeSectionID ? Theme.accent : Theme.inkFaint)
+                    Spacer()
+                    if section.id == activeSectionID {
+                      Text("CURRENT")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.accent)
+                    }
+                  }
+                  ChapterSummaryMarkdownView(markdown: ChapterSummaryContent.markdown(for: section))
+                }
+                .padding(Theme.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+                .overlay {
+                  RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
+                    .strokeBorder(section.id == activeSectionID ? Theme.accent.opacity(0.4) : Theme.hairline)
+                }
+              }
+            }
+            .padding(Theme.lg)
+          }
+        }
+      }
+      .background(Theme.paper)
+      .navigationTitle(book.title)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { dismiss() }
+            .tint(Theme.accent)
+        }
+      }
+    }
+  }
+}
+
 /// Per-book chapter workspace shared by the reader, audiobook player and the
 /// Notebook tab. A deterministic grounded preview works offline; the reader can
-/// explicitly send a chapter or book excerpt for GPT-backed Markdown generation.
+/// explicitly refresh a chapter with AI while preserving the same concise form.
 struct ChapterSummaryView: View {
   @Bindable var book: Book
   let initialOffset: Int
@@ -432,7 +561,6 @@ struct ChapterSummaryView: View {
   @State private var previewThought = false
   @State private var didSave = false
   @State private var aiMarkdown: String?
-  @State private var aiAttribution: String?
   @State private var aiError: String?
   @State private var isGeneratingAI = false
   @FocusState private var thoughtFocused: Bool
@@ -483,12 +611,12 @@ struct ChapterSummaryView: View {
           ContentUnavailableView {
             Label("No chapter text", systemImage: "doc.text.magnifyingglass")
           } description: {
-            Text("ReadSync needs extractable text to create a chapter summary.")
+            Text("Inkflow needs extractable text to create a chapter summary.")
           }
         }
       }
       .background(Theme.paper)
-      .navigationTitle("Chapter guide")
+      .navigationTitle("Chapter summary")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -543,16 +671,8 @@ struct ChapterSummaryView: View {
 
   private func summaryContent(_ section: ChapterSummarySection) -> some View {
     VStack(alignment: .leading, spacing: Theme.lg) {
-      HStack(spacing: Theme.sm) {
-        Image(systemName: aiMarkdown == nil ? "iphone" : "sparkles")
-        Text(aiAttribution ?? "Local preview · grounded in this chapter")
-        Spacer()
-      }
-      .font(.caption.weight(.semibold))
-      .foregroundStyle(Theme.accent)
-
       ChapterSummaryMarkdownView(
-        markdown: aiMarkdown ?? ChapterSummaryContent.markdown(for: section)
+        markdown: ChapterSummaryContent.markdown(for: section, generatedText: aiMarkdown)
       )
         .padding(Theme.lg)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
@@ -560,20 +680,11 @@ struct ChapterSummaryView: View {
           RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
 
       VStack(alignment: .leading, spacing: Theme.md) {
-        Menu {
-          Button {
-            generateAISummary(for: section, scope: .chapter)
-          } label: {
-            Label("Summarize this chapter", systemImage: "text.page.badge.magnifyingglass")
-          }
-          Button {
-            generateAISummary(for: section, scope: .book)
-          } label: {
-            Label("Summarize the book", systemImage: "books.vertical")
-          }
+        Button {
+          generateAISummary(for: section)
         } label: {
           Label(
-            isGeneratingAI ? "Thinking…" : "Generate with AI",
+            isGeneratingAI ? "Writing summary…" : "Refresh with AI",
             systemImage: isGeneratingAI ? "hourglass" : "sparkles")
         }
         .buttonStyle(.borderedProminent)
@@ -592,7 +703,9 @@ struct ChapterSummaryView: View {
 
           if book.format == .text {
             Button {
-              book.charOffset = section.startOffset
+              // Chapter selection is intentional backwards-capable reader
+              // navigation, unlike a stale mode-dismissal checkpoint.
+              book.updateCharacterOffset(section.startOffset, allowingBackward: true)
               try? context.save()
               dismiss()
             } label: {
@@ -605,7 +718,7 @@ struct ChapterSummaryView: View {
       }
 
       if isGeneratingAI {
-        ProgressView("Generating a grounded Markdown summary…")
+        ProgressView("Writing two short sentences…")
           .font(.caption)
           .tint(Theme.accent)
       }
@@ -616,7 +729,7 @@ struct ChapterSummaryView: View {
           .foregroundStyle(Theme.inkSoft)
       }
 
-      Text("AI generation sends only the selected chapter or book excerpt to OpenAI. The server uses GPT-5.6 Luna at xhigh reasoning effort; provider keys never ship in the app. The local preview remains available offline.")
+      Text("AI uses only this chapter's text. Your local two-sentence summary is always available offline.")
       .font(.caption)
       .foregroundStyle(Theme.inkFaint)
     }
@@ -734,26 +847,20 @@ struct ChapterSummaryView: View {
 
   private func resetAISummary() {
     aiMarkdown = nil
-    aiAttribution = nil
     aiError = nil
     isGeneratingAI = false
   }
 
-  private func generateAISummary(
-    for section: ChapterSummarySection, scope: AISummaryService.Scope
-  ) {
+  private func generateAISummary(for section: ChapterSummarySection) {
     guard !isGeneratingAI else { return }
     isGeneratingAI = true
     aiError = nil
-    let sourceText = scope == .chapter ? section.text : book.bodyText
-    let title = scope == .chapter ? section.title : "Whole book"
     Task {
       do {
         let result = try await AISummaryService.generate(
-          book: book, sectionTitle: title, text: sourceText, scope: scope)
+          book: book, sectionTitle: section.title, text: section.text)
         await MainActor.run {
           aiMarkdown = result.markdown
-          aiAttribution = "\(result.model) · \(result.reasoning_effort) reasoning"
           isGeneratingAI = false
         }
       } catch {

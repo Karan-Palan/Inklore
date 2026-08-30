@@ -10,6 +10,7 @@ struct EpubContentsSheet: View {
   var body: some View {
     NavigationStack {
       List {
+        Section {
         ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
           Button {
             onSelect(index)
@@ -32,11 +33,23 @@ struct EpubContentsSheet: View {
             }
             .padding(.vertical, 2)
           }
+          .accessibilityLabel(
+            "Chapter \(index + 1), \(chapter.title)\(index == current ? ", current chapter" : "")")
+        }
+        } header: {
+          Text("\(chapters.count) chapters")
         }
       }
       .listStyle(.plain)
       .navigationTitle("Contents")
       .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Text("Ch. \(current + 1)")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.accent)
+        }
+      }
     }
   }
 }

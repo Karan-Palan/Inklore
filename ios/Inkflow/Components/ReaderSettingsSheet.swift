@@ -41,8 +41,18 @@ struct ReaderSettingsSheet: View {
   private var header: some View {
     HStack {
       Text("Aa")
-        .font(.system(size: 26, weight: .bold, design: .serif))
-        .foregroundStyle(Theme.ink)
+        .font(.system(size: 28, weight: .bold, design: .serif))
+        .foregroundStyle(Theme.accent)
+        .frame(width: 42, height: 42)
+        .background(Theme.accentSoft.opacity(0.55), in: Circle())
+      VStack(alignment: .leading, spacing: 1) {
+        Text("Reading preferences")
+          .font(.headline.weight(.bold))
+          .foregroundStyle(Theme.ink)
+        Text("Tune the page to your eyes")
+          .font(.caption)
+          .foregroundStyle(Theme.inkSoft)
+      }
       Spacer()
       Button {
         dismiss()
@@ -51,6 +61,7 @@ struct ReaderSettingsSheet: View {
           .font(.title2)
           .foregroundStyle(Theme.inkFaint)
       }
+      .accessibilityLabel("Close reading preferences")
     }
   }
 
@@ -90,6 +101,8 @@ struct ReaderSettingsSheet: View {
               )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(family.rawValue) font")
+            .accessibilityAddTraits(settings.font == family ? .isSelected : [])
           }
         }
         .padding(.vertical, 2)
@@ -157,6 +170,8 @@ struct ReaderSettingsSheet: View {
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
+        .accessibilityLabel("\(theme.rawValue) theme")
+        .accessibilityAddTraits(settings.theme == theme ? .isSelected : [])
       }
     }
   }
@@ -175,6 +190,8 @@ struct ReaderSettingsSheet: View {
         Image(systemName: minIcon).foregroundStyle(Theme.inkFaint)
         Slider(value: value, in: range, step: step)
           .tint(Theme.accent)
+          .accessibilityLabel(title)
+          .accessibilityValue("\(Int(value.wrappedValue))")
         Image(systemName: maxIcon).foregroundStyle(Theme.inkFaint)
       }
     }
@@ -192,6 +209,8 @@ struct ReaderSettingsSheet: View {
         Image(systemName: minIcon).foregroundStyle(Theme.inkFaint)
         Slider(value: value, in: range, step: step)
           .tint(Theme.accent)
+          .accessibilityLabel(title)
+          .accessibilityValue("\(Int(value.wrappedValue * 100)) percent")
         Image(systemName: maxIcon).foregroundStyle(Theme.inkFaint)
       }
     }

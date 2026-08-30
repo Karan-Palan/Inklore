@@ -9,6 +9,8 @@ struct ReaderPageView: UIViewRepresentable {
   let highlights: [(range: NSRange, color: UIColor)]
   let activeWordRange: NSRange?
   let onSelect: (_ text: String, _ range: NSRange) -> Void
+  /// A concise VoiceOver announcement supplied by the paginated reader.
+  var accessibilityPageDescription: String? = nil
   /// Fired when the reader taps inside an existing highlight (global char index).
   var onTapHighlight: ((_ globalIndex: Int) -> Void)? = nil
 
@@ -22,6 +24,7 @@ struct ReaderPageView: UIViewRepresentable {
     tv.textContainer.lineFragmentPadding = 0
     tv.delegate = context.coordinator
     tv.dataDetectorTypes = []
+    tv.accessibilityHint = "Double tap and hold text to select a passage. Tap the center of the page to show reader controls."
 
     let tap = UITapGestureRecognizer(
       target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -42,6 +45,7 @@ struct ReaderPageView: UIViewRepresentable {
 
   func updateUIView(_ tv: UITextView, context: Context) {
     context.coordinator.parent = self
+    tv.accessibilityLabel = accessibilityPageDescription ?? "Book page"
 
     guard pageRange.location + pageRange.length <= attributed.length else {
       tv.attributedText = NSAttributedString(string: "")
