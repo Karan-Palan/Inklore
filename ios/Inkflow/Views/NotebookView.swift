@@ -132,9 +132,7 @@ struct NotebookView: View {
       }
     }
     .sheet(item: $summaryBook) { book in
-      ChapterSummaryView(
-        book: book, initialOffset: summaryOffset(for: book), initialTab: .summary
-      )
+      BookSummaryListView(book: book, initialOffset: summaryOffset(for: book))
       .presentationDetents([.large])
       .presentationDragIndicator(.visible)
     }
@@ -146,7 +144,7 @@ struct NotebookView: View {
   private var summaryBooks: [Book] {
     let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     return books
-      .filter { $0.bodyNSLength > 0 }
+      .filter { $0.bodyNSLength > 0 || $0.isEpub }
       .filter {
         query.isEmpty || $0.title.lowercased().contains(query)
           || $0.author.lowercased().contains(query)
@@ -161,18 +159,27 @@ struct NotebookView: View {
       if summaryBooks.isEmpty {
         ContentUnavailableView {
           Label(
-            books.isEmpty ? "Your chapter guides live here" : "No matching books",
+            books.isEmpty ? "Your chapter summaries live here" : "No matching books",
             systemImage: "sparkles.rectangle.stack")
         } description: {
           Text(
             books.isEmpty
-              ? "Add a book, then ReadSync will organize its extracted text into chapter summaries and space for your own thoughts."
-              : "Try a different title or author."
+              ? "Add a book, then Inkflow will detect its chapters and keep a two-sentence recap for each one."
+              : "Try a different title or author, or clear your search."
           )
         }
       } else {
         ScrollView {
-          LazyVStack(spacing: Theme.lg) {
+          LazyVStack(alignment: .leading, spacing: Theme.lg) {
+            VStack(alignment: .leading, spacing: Theme.xs) {
+              Text("SUMMARIES BY BOOK")
+                .font(.caption.weight(.bold))
+                .tracking(1.1)
+                .foregroundStyle(Theme.inkFaint)
+              Text("Return to every chapter in a minute.")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Theme.ink)
+            }
             ForEach(summaryBooks) { book in
               summaryCard(for: book)
             }
@@ -185,41 +192,36 @@ struct NotebookView: View {
   }
 
   private func summaryCard(for book: Book) -> some View {
-    let section = ChapterSummaryContent.section(for: book, offset: summaryOffset(for: book))
-    return VStack(alignment: .leading, spacing: Theme.md) {
+    let sections = ChapterSummaryContent.sections(for: book)
+    let current = ChapterSummaryContent.section(for: book, offset: summaryOffset(for: book))
+    return Button {
+      summaryBook = book
+    } label: {
       HStack(spacing: Theme.md) {
-        BookCover(book: book, width: 48, showAudioBadge: false)
-        VStack(alignment: .leading, spacing: 3) {
+        BookCover(book: book, width: 52, showAudioBadge: false)
+        VStack(alignment: .leading, spacing: Theme.xs) {
+          Text("\(sections.count) \(sections.count == 1 ? "CHAPTER" : "CHAPTERS") DETECTED")
+            .font(.system(size: 10, weight: .bold))
+            .tracking(0.9)
+            .foregroundStyle(Theme.accent)
           Text(book.title)
             .font(.headline)
             .foregroundStyle(Theme.ink)
-            .lineLimit(1)
-          Text(section?.title ?? "Chapter guide")
+            .lineLimit(2)
+          Text(current.map { "Current: \($0.title)" } ?? "Open chapter summaries")
             .font(.caption)
             .foregroundStyle(Theme.inkSoft)
             .lineLimit(1)
         }
         Spacer()
-        Image(systemName: "sparkles")
+        Image(systemName: "chevron.right")
+          .font(.footnote.weight(.bold))
+          .frame(width: 30, height: 30)
+          .background(Theme.surfaceAlt, in: Circle())
           .foregroundStyle(Theme.accent)
       }
-
-      if let section {
-        ChapterSummaryMarkdownView(markdown: ChapterSummaryContent.markdown(for: section))
-      }
-
-      Button {
-        summaryBook = book
-      } label: {
-        HStack {
-          Text("Open chapter guide")
-          Spacer()
-          Image(systemName: "arrow.right")
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(Theme.accent)
-      }
     }
+    .buttonStyle(.plain)
     .padding(Theme.lg)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
@@ -234,7 +236,7 @@ struct NotebookView: View {
   private var content: some View {
     ScrollView {
       VStack(spacing: Theme.md) {
-        Picker("", selection: $filter) {
+        Picker("Show", selection: $filter) {
           ForEach(Filter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
         }
         .pickerStyle(.segmented)
@@ -242,6 +244,8 @@ struct NotebookView: View {
         .padding(.top, Theme.sm)
 
         if filter != .notes { colorFilterBar }
+
+        annotationsSummary
 
         if entries.isEmpty {
           noMatchState
@@ -268,6 +272,29 @@ struct NotebookView: View {
     }
   }
 
+  private var annotationsSummary: some View {
+    HStack(spacing: Theme.sm) {
+      Text("\(entries.count) \(entries.count == 1 ? "thought" : "thoughts")")
+        .font(.caption.weight(.bold))
+        .foregroundStyle(Theme.ink)
+      if !searchText.isEmpty || colorFilter != nil || filter != .all {
+        Text("·")
+          .foregroundStyle(Theme.inkFaint)
+        Button("Clear filters") {
+          withAnimation(.snappy) {
+            searchText = ""
+            colorFilter = nil
+            filter = .all
+          }
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(Theme.accent)
+      }
+      Spacer()
+    }
+    .padding(.top, Theme.xs)
+  }
+
   private func colorChip(_ color: HighlightColor?, label: String) -> some View {
     let active = colorFilter == color
     return Button {
@@ -287,17 +314,17 @@ struct NotebookView: View {
   }
 
   private func bookSection(_ title: String, entries: [Entry]) -> some View {
-    VStack(alignment: .leading, spacing: Theme.sm) {
+    VStack(alignment: .leading, spacing: Theme.md) {
       HStack(spacing: 6) {
-        Image(systemName: "book.closed").font(.caption)
-        Text(title).font(.subheadline.weight(.bold))
+        Image(systemName: "book.closed.fill").font(.caption)
+        Text(title).font(.subheadline.weight(.bold)).lineLimit(1)
         Spacer()
         Text("\(entries.count)")
           .font(.caption2.weight(.bold))
           .foregroundStyle(Theme.inkFaint)
       }
       .foregroundStyle(Theme.ink)
-      .padding(.top, Theme.sm)
+      .padding(.top, Theme.md)
 
       ForEach(entries) { entry in
         switch entry.kind {
@@ -313,11 +340,22 @@ struct NotebookView: View {
   private func highlightCard(_ highlight: Highlight) -> some View {
     let color = HighlightColor(rawValue: highlight.colorName)?.color ?? Theme.highlightYellow
     return HStack(alignment: .top, spacing: Theme.md) {
-      RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 5)
-      VStack(alignment: .leading, spacing: Theme.sm) {
+      RoundedRectangle(cornerRadius: 3).fill(color).frame(width: 4)
+      VStack(alignment: .leading, spacing: Theme.md) {
+        HStack(spacing: Theme.xs) {
+          Text("HIGHLIGHT")
+            .font(.system(size: 10, weight: .bold))
+            .tracking(1)
+            .foregroundStyle(Theme.inkFaint)
+          Spacer()
+          Image(systemName: "highlighter")
+            .font(.caption)
+            .foregroundStyle(color)
+        }
         Text(highlight.text)
-          .font(.callout)
+          .font(.system(.body, design: .serif))
           .foregroundStyle(Theme.ink)
+          .lineSpacing(3)
           .fixedSize(horizontal: false, vertical: true)
         metaRow(chapter: highlight.chapterTitle, date: highlight.createdDate)
       }
@@ -344,10 +382,24 @@ struct NotebookView: View {
       Image(systemName: "note.text")
         .foregroundStyle(Theme.accent)
         .padding(.top, 2)
-      VStack(alignment: .leading, spacing: Theme.sm) {
-        Text(note.passage)
-          .font(.callout.weight(.semibold))
-          .foregroundStyle(Theme.ink)
+      VStack(alignment: .leading, spacing: Theme.md) {
+        HStack {
+          Text("YOUR NOTE")
+            .font(.system(size: 10, weight: .bold))
+            .tracking(1)
+            .foregroundStyle(Theme.accent)
+          Spacer()
+        }
+        if !note.passage.isEmpty {
+          Text(note.passage)
+            .font(.system(.callout, design: .serif).italic())
+            .foregroundStyle(Theme.inkSoft)
+            .lineSpacing(2)
+            .padding(.leading, Theme.md)
+            .overlay(alignment: .leading) {
+              Capsule().fill(Theme.accent.opacity(0.6)).frame(width: 3)
+            }
+        }
         if !note.body.isEmpty {
           ChapterSummaryMarkdownView(markdown: note.body)
         }
@@ -389,10 +441,10 @@ struct NotebookView: View {
 
   private var emptyState: some View {
     ContentUnavailableView {
-      Label("No notes yet", systemImage: "bookmark")
+      Label("Your reading will leave a trail", systemImage: "bookmark")
     } description: {
       Text(
-        "Long-press any passage while reading to highlight it or add a note. Tap a highlight again to recolor or annotate it. Everything collects here."
+        "Long-press a passage to save a highlight or write a note. The ideas worth returning to will gather here, organized by book."
       )
     }
   }
@@ -402,10 +454,10 @@ struct NotebookView: View {
       Image(systemName: "magnifyingglass")
         .font(.largeTitle)
         .foregroundStyle(Theme.inkFaint)
-      Text("No matching annotations")
+      Text("No matching thoughts")
         .font(.headline)
         .foregroundStyle(Theme.ink)
-      Text("Try a different search or color filter.")
+      Text("Try another phrase or clear a filter to see your saved ideas.")
         .font(.subheadline)
         .foregroundStyle(Theme.inkSoft)
     }
@@ -416,7 +468,7 @@ struct NotebookView: View {
   // MARK: Export
 
   private var exportText: String {
-    var lines: [String] = ["My ReadSync Notebook", ""]
+    var lines: [String] = ["My Inkflow Notebook", ""]
     for group in grouped {
       lines.append("# \(group.book)")
       for entry in group.entries {

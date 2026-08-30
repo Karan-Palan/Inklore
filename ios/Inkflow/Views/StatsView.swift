@@ -9,13 +9,16 @@ import SwiftUI
 struct StatsView: View {
   @Environment(\.modelContext) private var context
   @Environment(AuthStore.self) private var auth
+  @Environment(\.appRouter) private var router
   @Query private var sessions: [ReadingSession]
   @Query private var goals: [ReadingGoal]
+  @Query private var profiles: [ReaderProfile]
   @Query private var books: [Book]
 
   @State private var showEditGoal = false
   @State private var showDigest = false
   @State private var showDeleteAccount = false
+  @State private var showReplayOnboarding = false
   @Query(sort: \Highlight.createdDate, order: .reverse) private var allHighlights: [Highlight]
   @Query(sort: \Note.createdDate, order: .reverse) private var allNotes: [Note]
   @AppStorage("digest.enabled") private var digestEnabled = false
@@ -36,6 +39,11 @@ struct StatsView: View {
   private var weeklyTotal: Int { dailyMinutes.reduce(0) { $0 + $1.minutes } }
   private var weeklyTarget: Int { goal?.weeklyMinutesTarget ?? 150 }
   private var goalProgress: Double { min(1, Double(weeklyTotal) / Double(max(weeklyTarget, 1))) }
+  private var dailyTarget: Int { goal?.dailyMinutesTarget ?? 20 }
+  private var todayMinutes: Int { dailyMinutes.last?.minutes ?? 0 }
+  private var dailyProgress: Double { min(1, Double(todayMinutes) / Double(max(dailyTarget, 1))) }
+  private var activeDaysThisWeek: Int { dailyMinutes.filter { $0.minutes > 0 }.count }
+  private var weeklyMinutesRemaining: Int { max(weeklyTarget - weeklyTotal, 0) }
   private var finishedCount: Int { books.filter { $0.isFinished }.count }
   private var inProgressCount: Int { books.filter { $0.isStarted && !$0.isFinished }.count }
   private var totalMinutes: Int { sessions.reduce(0) { $0 + $1.minutes } }
@@ -85,6 +93,7 @@ struct StatsView: View {
             listenReadSplit
             streakStrip
             digestCard
+            replayOnboardingCard
             weeklyChartCard
             statTiles
             Color.clear.frame(height: Theme.sm)
@@ -96,14 +105,22 @@ struct StatsView: View {
       }
       .background(Theme.paper)
       .sheet(isPresented: $showEditGoal) {
-        GoalEditor(goal: goalOrCreate())
-          .presentationDetents([.height(420)])
+        GoalEditor(goal: goalOrCreate(), profile: profileOrCreate())
+          .presentationDetents([.medium, .large])
       }
       .sheet(isPresented: $showDigest) {
         DigestSettingsView()
       }
     }
     .__tenxTrackView("StatsView")
+    .alert("Replay onboarding?", isPresented: $showReplayOnboarding) {
+      Button("Cancel", role: .cancel) {}
+      Button("Replay onboarding") {
+        router.replayOnboarding()
+      }
+    } message: {
+      Text("Your books, downloads, notes, summaries, videos, goals, and reading progress will stay exactly as they are.")
+    }
   }
 
   // MARK: Profile header
@@ -162,45 +179,111 @@ struct StatsView: View {
     return goalName.isEmpty ? "Reader" : goalName
   }
 
+  private var replayOnboardingCard: some View {
+    Button {
+      showReplayOnboarding = true
+    } label: {
+      HStack(spacing: Theme.md) {
+        Image(systemName: "sparkles.rectangle.stack")
+          .font(.title3.weight(.semibold))
+          .foregroundStyle(Theme.accent)
+          .frame(width: 30)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("Replay onboarding")
+            .font(.headline)
+            .foregroundStyle(Theme.ink)
+          Text("Show the intro again without clearing anything")
+            .font(.caption)
+            .foregroundStyle(Theme.inkSoft)
+        }
+        Spacer()
+        Image(systemName: "arrow.clockwise")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(Theme.inkFaint)
+      }
+      .padding(Theme.lg)
+      .cardSurface()
+    }
+    .buttonStyle(.plain)
+  }
+
   // MARK: Goal ring
 
   private var goalRingCard: some View {
-    HStack(spacing: Theme.xl) {
-      ZStack {
-        Circle().stroke(Theme.surfaceAlt, lineWidth: 14)
-        Circle()
-          .trim(from: 0, to: goalProgress)
-          .stroke(
-            AngularGradient(
-              colors: [Theme.accent, Theme.highlightYellow, Theme.accent], center: .center),
-            style: StrokeStyle(lineWidth: 14, lineCap: .round)
-          )
-          .rotationEffect(.degrees(-90))
-          .animation(.smooth, value: goalProgress)
-        VStack(spacing: 2) {
-          Text("\(Int(goalProgress * 100))%")
-            .font(.title.weight(.bold)).foregroundStyle(Theme.ink)
-          Text("of goal").font(.caption).foregroundStyle(Theme.inkFaint)
+    VStack(alignment: .leading, spacing: Theme.lg) {
+      HStack(spacing: Theme.xl) {
+        ZStack {
+          Circle().stroke(Theme.surfaceAlt, lineWidth: 14)
+          Circle()
+            .trim(from: 0, to: goalProgress)
+            .stroke(
+              AngularGradient(
+                colors: [Theme.accent, Theme.highlightYellow, Theme.accent], center: .center),
+              style: StrokeStyle(lineWidth: 14, lineCap: .round)
+            )
+            .rotationEffect(.degrees(-90))
+            .animation(.smooth, value: goalProgress)
+          VStack(spacing: 2) {
+            Text("\(Int(goalProgress * 100))%")
+              .font(.title.weight(.bold)).foregroundStyle(Theme.ink)
+            Text("this week").font(.caption).foregroundStyle(Theme.inkFaint)
+          }
         }
+        .frame(width: 126, height: 126)
+
+        VStack(alignment: .leading, spacing: Theme.sm) {
+          Text(weeklyGoalEyebrow)
+            .font(.caption.weight(.bold))
+            .tracking(0.9)
+            .foregroundStyle(Theme.inkFaint)
+          Text("\(weeklyTotal) min")
+            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .foregroundStyle(Theme.accent)
+          Text(weeklyGoalDetail)
+            .font(.subheadline).foregroundStyle(Theme.inkSoft)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        Spacer(minLength: 0)
       }
-      .frame(width: 130, height: 130)
 
       VStack(alignment: .leading, spacing: Theme.sm) {
-        Text("This week").font(.headline).foregroundStyle(Theme.ink)
-        Text("\(weeklyTotal) min")
-          .font(.system(size: 34, weight: .bold, design: .rounded))
-          .foregroundStyle(Theme.accent)
-        Text("Goal: \(weeklyTarget) min / week")
-          .font(.subheadline).foregroundStyle(Theme.inkSoft)
-        if goalProgress >= 1 {
-          Label("Goal reached!", systemImage: "checkmark.seal.fill")
-            .font(.caption.weight(.bold)).foregroundStyle(Theme.accent)
+        HStack {
+          Label("Today", systemImage: dailyProgress >= 1 ? "checkmark.circle.fill" : "sun.max.fill")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(dailyProgress >= 1 ? Theme.accent : Theme.inkSoft)
+          Spacer()
+          Text(dailyGoalDetail)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.inkSoft)
         }
+        GeometryReader { geo in
+          ZStack(alignment: .leading) {
+            Capsule().fill(Theme.surfaceAlt)
+            Capsule()
+              .fill(dailyProgress >= 1 ? Theme.accent : Theme.highlightBlue)
+              .frame(width: max(dailyProgress == 0 ? 0 : 6, geo.size.width * dailyProgress))
+          }
+        }
+        .frame(height: 8)
       }
-      Spacer(minLength: 0)
     }
     .padding(Theme.lg)
     .cardSurface()
+  }
+
+  private var weeklyGoalEyebrow: String {
+    goalProgress >= 1 ? "WEEKLY GOAL COMPLETE" : "YOUR WEEKLY RHYTHM"
+  }
+
+  private var weeklyGoalDetail: String {
+    if goalProgress >= 1 { return "You showed up for yourself. Beautiful work." }
+    if weeklyTotal == 0 { return "A small first session is all it takes to begin." }
+    return "\(weeklyMinutesRemaining) min to reach your \(weeklyTarget)-min goal"
+  }
+
+  private var dailyGoalDetail: String {
+    if dailyProgress >= 1 { return "Daily goal complete" }
+    return todayMinutes == 0 ? "Start with \(dailyTarget) min" : "\(todayMinutes) of \(dailyTarget) min"
   }
 
   // MARK: Read vs listen split
@@ -229,6 +312,11 @@ struct StatsView: View {
         "\(readingMinutes) min read · \(listeningMinutes) min listened, all-time"
       )
       .font(.caption).foregroundStyle(Theme.inkFaint)
+      if totalMinutes == 0 {
+        Text("Your mix will appear after your first reading session.")
+          .font(.caption)
+          .foregroundStyle(Theme.inkSoft)
+      }
     }
     .padding(Theme.lg)
     .cardSurface()
@@ -258,37 +346,90 @@ struct StatsView: View {
   // MARK: Streak
 
   private var streakStrip: some View {
-    HStack(spacing: Theme.lg) {
-      streakPill(
-        icon: "flame.fill", value: "\(currentStreak)", label: "Day streak", tint: Theme.accent)
-      streakPill(
-        icon: "target", value: "\(goal?.dailyMinutesTarget ?? 20)", label: "Daily goal (min)",
-        tint: Theme.highlightBlue)
+    VStack(alignment: .leading, spacing: Theme.md) {
+      HStack {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("KEEP THE SPARK GOING")
+            .font(.caption.weight(.bold))
+            .tracking(1)
+            .foregroundStyle(Theme.inkFaint)
+          Text(streakMessage)
+            .font(.headline)
+            .foregroundStyle(Theme.ink)
+        }
+        Spacer()
+        Image(systemName: currentStreak > 0 ? "flame.fill" : "flame")
+          .font(.title2)
+          .foregroundStyle(Theme.accent)
+          .frame(width: 44, height: 44)
+          .background(Theme.accent.opacity(0.12), in: Circle())
+      }
+
+      HStack(spacing: 0) {
+        ForEach(Array(dailyMinutes.enumerated()), id: \.offset) { index, day in
+          VStack(spacing: 6) {
+            Circle()
+              .fill(day.minutes > 0 ? Theme.accent : Theme.surfaceAlt)
+              .frame(width: 26, height: 26)
+              .overlay {
+                if day.minutes > 0 {
+                  Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                }
+              }
+              .overlay {
+                if Calendar.current.isDateInToday(day.day) {
+                  Circle().strokeBorder(Theme.ink, lineWidth: 1.5).padding(-3)
+                }
+              }
+            Text(day.day, format: .dateTime.weekday(.narrow))
+              .font(.caption2.weight(index == dailyMinutes.count - 1 ? .bold : .regular))
+              .foregroundStyle(Theme.inkSoft)
+          }
+          .frame(maxWidth: .infinity)
+        }
+      }
+
+      HStack(spacing: Theme.lg) {
+        miniMetric(value: "\(currentStreak)", label: currentStreak == 1 ? "day streak" : "day streak")
+        miniMetric(value: "\(activeDaysThisWeek)/7", label: "days this week")
+        miniMetric(value: "\(dailyTarget)", label: "min each day")
+      }
     }
+    .padding(Theme.lg)
+    .cardSurface()
   }
 
-  private func streakPill(icon: String, value: String, label: String, tint: Color) -> some View {
-    HStack(spacing: Theme.md) {
-      Image(systemName: icon)
-        .font(.title2).foregroundStyle(tint)
-        .frame(width: 44, height: 44)
-        .background(tint.opacity(0.15), in: Circle())
-      VStack(alignment: .leading, spacing: 0) {
-        Text(value).font(.title3.weight(.bold)).foregroundStyle(Theme.ink)
-        Text(label).font(.caption).foregroundStyle(Theme.inkFaint)
-      }
-      Spacer()
+  private var streakMessage: String {
+    if currentStreak == 0 { return "Your next page starts a new streak." }
+    if currentStreak == 1 { return "One day in—come back tomorrow." }
+    return "\(currentStreak) days of making space to read."
+  }
+
+  private func miniMetric(value: String, label: String) -> some View {
+    VStack(alignment: .leading, spacing: 1) {
+      Text(value)
+        .font(.subheadline.weight(.bold))
+        .foregroundStyle(Theme.ink)
+      Text(label)
+        .font(.caption2)
+        .foregroundStyle(Theme.inkFaint)
     }
-    .padding(Theme.md)
-    .frame(maxWidth: .infinity)
-    .cardSurface()
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   // MARK: Weekly chart
 
   private var weeklyChartCard: some View {
     VStack(alignment: .leading, spacing: Theme.md) {
-      Text("Minutes read").font(.headline).foregroundStyle(Theme.ink)
+      HStack(alignment: .firstTextBaseline) {
+        Text("Minutes read").font(.headline).foregroundStyle(Theme.ink)
+        Spacer()
+        Text("\(activeDaysThisWeek) of 7 days")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(Theme.inkSoft)
+      }
       Chart(dailyMinutes) { point in
         BarMark(x: .value("Day", point.day, unit: .day), y: .value("Minutes", point.minutes))
           .foregroundStyle(Theme.accent.gradient)
@@ -305,6 +446,9 @@ struct StatsView: View {
         }
       }
       .accessibilityLabel("Minutes read each day this week")
+      Text("The dotted line is your \(max(1, weeklyTarget / 7))-minute daily pace.")
+        .font(.caption)
+        .foregroundStyle(Theme.inkFaint)
     }
     .padding(Theme.lg)
     .cardSurface()
@@ -367,6 +511,13 @@ struct StatsView: View {
     context.insert(g)
     return g
   }
+
+  private func profileOrCreate() -> ReaderProfile {
+    if let profile = profiles.first { return profile }
+    let profile = ReaderProfile(hasCompletedOnboarding: OnboardingFlag.completed)
+    context.insert(profile)
+    return profile
+  }
 }
 
 struct DayMinutes: Identifiable {
@@ -375,35 +526,114 @@ struct DayMinutes: Identifiable {
   let minutes: Int
 }
 
-/// Editable goal + profile sheet.
+/// One in-app home for the durable onboarding choices and reading target.
 struct GoalEditor: View {
   @Bindable var goal: ReadingGoal
+  @Bindable var profile: ReaderProfile
+  @Environment(\.modelContext) private var context
   @Environment(\.dismiss) private var dismiss
+  @State private var saveError: String?
+  @State private var draftDisplayName: String
+  @State private var draftConsumeModeRaw: String
+  @State private var draftGenreID: String
+  @State private var draftDailyMinutes: Int
+  @State private var draftWeeklyMinutes: Int
+
+  init(goal: ReadingGoal, profile: ReaderProfile) {
+    self.goal = goal
+    self.profile = profile
+    _draftDisplayName = State(initialValue: goal.displayName)
+    _draftConsumeModeRaw = State(initialValue: profile.consumeModeRaw)
+    _draftGenreID = State(initialValue: profile.selectedGenreID)
+    _draftDailyMinutes = State(initialValue: profile.dailyMinutesTarget)
+    _draftWeeklyMinutes = State(initialValue: goal.weeklyMinutesTarget)
+  }
 
   var body: some View {
     NavigationStack {
       Form {
         Section("Profile") {
-          TextField("Your name", text: $goal.displayName)
+          TextField("Your name", text: $draftDisplayName)
+        }
+        Section("How you read") {
+          Picker("Default mode", selection: $draftConsumeModeRaw) {
+            ForEach(ConsumeMode.allCases) { mode in
+              Label(mode.rawValue, systemImage: mode.icon).tag(mode.rawValue)
+            }
+          }
+          Picker("Starter shelf", selection: $draftGenreID) {
+            ForEach(ReadingGenre.all) { genre in
+              Label(genre.name, systemImage: genre.icon).tag(genre.id)
+            }
+          }
+        }
+        Section("Daily rhythm") {
+          Picker("Daily goal", selection: dailyMinutes) {
+            ForEach(DailyGoalOption.all) { option in
+              Text("\(option.label) · \(option.shortBlurb)").tag(option.minutes)
+            }
+          }
+          Text("Your weekly target starts at five reading days and can be adjusted below.")
+            .font(.footnote)
+            .foregroundStyle(Theme.inkSoft)
         }
         Section("Weekly goal") {
           Stepper(
-            "\(goal.weeklyMinutesTarget) min / week", value: $goal.weeklyMinutesTarget,
+            "\(draftWeeklyMinutes) min / week", value: $draftWeeklyMinutes,
             in: 30...1000, step: 10)
+          Text("Changing the weekly goal here does not change your daily rhythm.")
+            .font(.footnote)
+            .foregroundStyle(Theme.inkSoft)
         }
-        Section("Daily goal") {
-          Stepper(
-            "\(goal.dailyMinutesTarget) min / day", value: $goal.dailyMinutesTarget, in: 5...240,
-            step: 5)
+        if let saveError {
+          Section {
+            Text(saveError)
+              .font(.footnote)
+              .foregroundStyle(.red)
+          }
         }
       }
-      .navigationTitle("Edit goals")
+      .navigationTitle("Reading preferences")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { dismiss() }
+          Button("Done") { save() }
+            .fontWeight(.semibold)
         }
       }
+    }
+  }
+
+  private var dailyMinutes: Binding<Int> {
+    Binding(
+      get: { draftDailyMinutes },
+      set: { minutes in
+        draftDailyMinutes = minutes
+        draftWeeklyMinutes = minutes * 5
+      }
+    )
+  }
+
+  private func save() {
+    let genre = ReadingGenre.named(draftGenreID) ?? ReadingGenre.all[0]
+    let mode = ConsumeMode(rawValue: draftConsumeModeRaw) ?? .both
+    do {
+      goal.displayName = draftDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
+      try OnboardingPersistence.savePreferences(
+        profile: profile,
+        goal: goal,
+        consumeMode: mode,
+        dailyMinutes: draftDailyMinutes,
+        weeklyMinutes: draftWeeklyMinutes,
+        genre: genre,
+        in: context
+      )
+      dismiss()
+    } catch {
+      saveError = "We couldn't save those preferences. Please try again."
     }
   }
 }

@@ -8,6 +8,7 @@ struct SelectionToolbar: View {
   let onLookup: () -> Void
   let onCopy: () -> Void
   let onDismiss: () -> Void
+  var shareText: String = "A passage worth sharing from Inkflow."
 
   var body: some View {
     HStack(spacing: Theme.lg) {
@@ -21,6 +22,7 @@ struct SelectionToolbar: View {
               .frame(width: 26, height: 26)
               .overlay(Circle().strokeBorder(.white.opacity(0.7), lineWidth: 1.5))
           }
+          .accessibilityLabel("Highlight in \(color.rawValue)")
         }
       }
 
@@ -29,18 +31,23 @@ struct SelectionToolbar: View {
       Button(action: onLookup) {
         Image(systemName: "character.book.closed")
       }
+      .accessibilityLabel("Look up selection")
       Button(action: onNote) {
         Image(systemName: "note.text.badge.plus")
       }
+      .accessibilityLabel("Add note")
       Button(action: onCopy) {
         Image(systemName: "doc.on.doc")
       }
-      ShareLink(item: "A passage worth sharing from ReadSync.") {
+      .accessibilityLabel("Copy selection")
+      ShareLink(item: shareText) {
         Image(systemName: "square.and.arrow.up")
       }
+      .accessibilityLabel("Share selection")
       Button(action: onDismiss) {
         Image(systemName: "xmark")
       }
+      .accessibilityLabel("Dismiss selection tools")
     }
     .font(.system(size: 17, weight: .semibold))
     .foregroundStyle(.white)
@@ -49,6 +56,7 @@ struct SelectionToolbar: View {
     .background(Theme.ink.opacity(0.96), in: Capsule(style: .continuous))
     .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
     .padding(.horizontal, Theme.lg)
+    .accessibilityElement(children: .contain)
   }
 }
 
