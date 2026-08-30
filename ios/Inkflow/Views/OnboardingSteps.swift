@@ -36,17 +36,17 @@ struct SourcesStep: View {
           icon: "building.columns.fill",
           title: "Find a book with a past",
           detail: "Discover downloadable books from the Internet Archive and Project Gutenberg.",
-          tint: Color(hex: 0x0F5C5B))
+          tint: Color(adaptiveAccentHex: 0x0F5C5B))
         OnboardingCapabilityCard(
           icon: "doc.richtext.fill",
           title: "Bring the books you own",
           detail: "Open PDF, EPUB, and Word documents directly from Files.",
-          tint: Color(hex: 0x2E5E9E))
+          tint: Color(adaptiveAccentHex: 0x2E5E9E))
         OnboardingCapabilityCard(
           icon: "link",
           title: "Save a good link",
           detail: "Paste a PDF or EPUB link and keep it beside the rest of your library.",
-          tint: Color(hex: 0x7A1F3D))
+          tint: Color(adaptiveAccentHex: 0x7A1F3D))
 
         Label("Your imported books stay on this device.", systemImage: "lock.fill")
           .font(.footnote.weight(.medium))
@@ -200,21 +200,23 @@ private struct GenreCard: View {
   let selected: Bool
   let action: () -> Void
 
+  private var tint: Color { Color(adaptiveAccentHex: genre.tint) }
+
   var body: some View {
     Button(action: action) {
       VStack(spacing: Theme.sm) {
         ZStack(alignment: .topTrailing) {
           Image(systemName: genre.icon)
             .font(.title3.weight(.semibold))
-            .foregroundStyle(selected ? .white : Color(hex: genre.tint))
+            .foregroundStyle(selected ? .white : tint)
             .frame(width: 46, height: 46)
             .background(
-              selected ? Color(hex: genre.tint) : Color(hex: genre.tint).opacity(0.14),
+              selected ? tint : tint.opacity(0.14),
               in: RoundedRectangle(cornerRadius: Theme.radiusSm, style: .continuous)
             )
           Image(systemName: selected ? "checkmark.circle.fill" : "circle")
             .font(.caption.weight(.bold))
-            .foregroundStyle(selected ? Color(hex: genre.tint) : Theme.inkFaint.opacity(0.4))
+            .foregroundStyle(selected ? tint : Theme.inkFaint.opacity(0.4))
             .background(Theme.surface, in: Circle())
             .offset(x: 8, y: -7)
         }
@@ -237,12 +239,12 @@ private struct GenreCard: View {
       .frame(maxWidth: .infinity, minHeight: 160, alignment: .top)
       .padding(Theme.md)
       .background(
-        selected ? Color(hex: genre.tint).opacity(0.08) : Theme.surface,
+        selected ? tint.opacity(0.08) : Theme.surface,
         in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
       )
       .overlay(
         RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
-          .stroke(selected ? Color(hex: genre.tint) : Theme.hairline, lineWidth: selected ? 2 : 1)
+          .stroke(selected ? tint : Theme.hairline, lineWidth: selected ? 2 : 1)
       )
     }
     .buttonStyle(.plain)

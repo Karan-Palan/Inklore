@@ -1,4 +1,5 @@
 import SwiftData
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -6,6 +7,24 @@ import XCTest
 
 @MainActor
 final class OnboardingPersistenceTests: XCTestCase {
+  func testBrandPaletteMaintainsContrastInBothAppearances() {
+    let light = UITraitCollection(userInterfaceStyle: .light)
+    let dark = UITraitCollection(userInterfaceStyle: .dark)
+
+    let lightPaper = UIColor(Theme.paper).resolvedColor(with: light)
+    let darkPaper = UIColor(Theme.paper).resolvedColor(with: dark)
+    let lightInk = UIColor(Theme.ink).resolvedColor(with: light)
+    let darkInk = UIColor(Theme.ink).resolvedColor(with: dark)
+    let darkDataAccent = UIColor(Color(adaptiveAccentHex: 0x0F5C5B)).resolvedColor(with: dark)
+
+    XCTAssertGreaterThan(luminance(lightPaper), luminance(darkPaper))
+    XCTAssertGreaterThan(luminance(lightPaper), luminance(lightInk))
+    XCTAssertGreaterThan(luminance(darkInk), luminance(darkPaper))
+    XCTAssertGreaterThan(luminance(darkDataAccent), luminance(darkPaper) + 0.25)
+    XCTAssertNotEqual(lightPaper, darkPaper)
+    XCTAssertNotEqual(lightInk, darkInk)
+  }
+
   func testSavePersistsSelectionsRecommendationsAndGoal() throws {
     let defaults = UserDefaults.standard
     let previousCompletionFlag = defaults.object(forKey: OnboardingFlag.key)
@@ -194,5 +213,14 @@ final class OnboardingPersistenceTests: XCTestCase {
     XCTAssertTrue(markdown.contains("Protecting deliberate blocks"))
     XCTAssertFalse(markdown.localizedCaseInsensitiveContains("copyright"))
     XCTAssertFalse(markdown.contains("Rule #1"))
+  }
+
+  private func luminance(_ color: UIColor) -> CGFloat {
+    var red: CGFloat = 0
+    var green: CGFloat = 0
+    var blue: CGFloat = 0
+    var alpha: CGFloat = 0
+    XCTAssertTrue(color.getRed(&red, green: &green, blue: &blue, alpha: &alpha))
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
   }
 }

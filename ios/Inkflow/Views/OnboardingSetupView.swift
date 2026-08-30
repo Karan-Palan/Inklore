@@ -166,7 +166,7 @@ struct OnboardingSetupView: View {
         Spacer(minLength: Theme.sm)
         Image(systemName: state.genre.icon)
           .font(.headline.weight(.bold))
-          .foregroundStyle(Color(hex: state.genre.tint))
+          .foregroundStyle(Color(adaptiveAccentHex: state.genre.tint))
           .accessibilityHidden(true)
       }
 

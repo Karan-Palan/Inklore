@@ -14,6 +14,7 @@ struct ContentView: View {
 
   init() {
     UITabBar.appearance().tintColor = UIColor(Theme.accent)
+    UITabBar.appearance().unselectedItemTintColor = UIColor(Theme.inkFaint)
   }
 
   var body: some View {

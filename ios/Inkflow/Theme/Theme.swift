@@ -6,27 +6,28 @@ import UIKit
 /// momentum (starting a book, making a choice, or resuming a session).
 enum Theme {
   // MARK: Inkflow palette
-  static let ink = Color(hex: 0x16342E)  // primary text / strong elements
-  static let inkSoft = Color(hex: 0x5C716B)  // secondary text
-  static let inkFaint = Color(hex: 0x8C9A95)  // tertiary / captions
-  static let paper = Color(hex: 0xF7F8F4)  // app background
-  static let surface = Color(hex: 0xFFFFFF)  // cards / sheets
-  static let surfaceAlt = Color(hex: 0xEAF0EB)  // pills, wells
-  static let accent = Color(hex: 0xD96745)  // warm, optimistic action colour
-  static let accentDeep = Color(hex: 0xAD472E)
-  static let accentSoft = Color(hex: 0xF6D9CD)
-  static let moss = Color(hex: 0x2F6B5F)
-  static let mossSoft = Color(hex: 0xCFE4D9)
-  static let sun = Color(hex: 0xF3C95E)
-  static let lilac = Color(hex: 0xD8C6E9)
-  static let hairline = Color(hex: 0xDDE6DF)
-  static let shadow = Color(hex: 0x17372F, alpha: 0.12)
+  static let ink = Color(light: 0x16342E, dark: 0xE6F0EB)  // primary text / strong elements
+  static let inkSoft = Color(light: 0x5C716B, dark: 0xA8BBB4)  // secondary text
+  static let inkFaint = Color(light: 0x8C9A95, dark: 0x82968F)  // tertiary / captions
+  static let paper = Color(light: 0xF7F8F4, dark: 0x0D1513)  // app background
+  static let surface = Color(light: 0xFFFFFF, dark: 0x17211E)  // cards / sheets
+  static let surfaceAlt = Color(light: 0xEAF0EB, dark: 0x202E2A)  // pills, wells
+  static let accent = Color(light: 0xD96745, dark: 0xE97B58)  // warm, optimistic action colour
+  static let accentDeep = Color(light: 0xAD472E, dark: 0xF09A7D)
+  static let accentSoft = Color(light: 0xF6D9CD, dark: 0x4A2A22)
+  static let moss = Color(light: 0x2F6B5F, dark: 0x79B9A9)
+  static let mossSoft = Color(light: 0xCFE4D9, dark: 0x24433B)
+  static let sun = Color(light: 0xF3C95E, dark: 0xDDB54F)
+  static let lilac = Color(light: 0xD8C6E9, dark: 0x473B57)
+  static let hairline = Color(light: 0xDDE6DF, dark: 0x2D3B36)
+  static let shadow = Color(
+    light: 0x17372F, dark: 0x000000, alpha: 0.12, darkAlpha: 0.38)
 
   // Highlight swatch colors (used in reader selection + notebook)
-  static let highlightYellow = Color(hex: 0xF4D67A)
-  static let highlightGreen = Color(hex: 0xAFD6A6)
-  static let highlightBlue = Color(hex: 0x9FC4E8)
-  static let highlightPink = Color(hex: 0xEBA7BE)
+  static let highlightYellow = Color(light: 0xF4D67A, dark: 0xD6B84F)
+  static let highlightGreen = Color(light: 0xAFD6A6, dark: 0x78AD72)
+  static let highlightBlue = Color(light: 0x9FC4E8, dark: 0x74A6D1)
+  static let highlightPink = Color(light: 0xEBA7BE, dark: 0xCA7F9B)
 
   // MARK: Spacing scale
   static let xs: CGFloat = 4
@@ -45,6 +46,50 @@ enum Theme {
 }
 
 extension Color {
+  /// A brand color that automatically follows the current UIKit appearance.
+  /// UIKit-backed colors also adapt inside sheets, tab bars, and representables.
+  init(light: UInt, dark: UInt, alpha: Double = 1, darkAlpha: Double? = nil) {
+    self.init(uiColor: UIColor { traits in
+      let isDark = traits.userInterfaceStyle == .dark
+      let hex = isDark ? dark : light
+      return UIColor(
+        red: CGFloat((hex >> 16) & 0xFF) / 255,
+        green: CGFloat((hex >> 8) & 0xFF) / 255,
+        blue: CGFloat(hex & 0xFF) / 255,
+        alpha: CGFloat(isDark ? (darkAlpha ?? alpha) : alpha)
+      )
+    })
+  }
+
+  /// Preserves a content accent in light mode and lifts its luminance in dark
+  /// mode. This is useful for data-driven genre colors that do not have a
+  /// hand-authored dark variant in the model.
+  init(adaptiveAccentHex hex: UInt) {
+    self.init(uiColor: UIColor { traits in
+      let base = UIColor(
+        red: CGFloat((hex >> 16) & 0xFF) / 255,
+        green: CGFloat((hex >> 8) & 0xFF) / 255,
+        blue: CGFloat(hex & 0xFF) / 255,
+        alpha: 1
+      )
+      guard traits.userInterfaceStyle == .dark else { return base }
+
+      var hue: CGFloat = 0
+      var saturation: CGFloat = 0
+      var brightness: CGFloat = 0
+      var alpha: CGFloat = 0
+      guard base.getHue(
+        &hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+      else { return base }
+      return UIColor(
+        hue: hue,
+        saturation: min(saturation, 0.72),
+        brightness: max(brightness, 0.76),
+        alpha: alpha
+      )
+    })
+  }
+
   init(hex: UInt, alpha: Double = 1) {
     self.init(
       .sRGB,

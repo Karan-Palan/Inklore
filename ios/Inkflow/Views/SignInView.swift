@@ -5,6 +5,7 @@ import SwiftUI
 /// button, and email/password is available via an expandable form. Drives the
 /// shared `AuthStore`; once a session exists the app reveals the main flow.
 struct SignInView: View {
+  @Environment(\.colorScheme) private var colorScheme
   @Environment(AuthStore.self) private var auth
 
   @State private var showEmail = !BackendConfig.isAppleReady && !BackendConfig.isGoogleReady
@@ -49,7 +50,7 @@ struct SignInView: View {
       .scrollBounceBehavior(.basedOnSize)
 
       if auth.isWorking {
-        Color.black.opacity(0.08).ignoresSafeArea()
+        Theme.shadow.opacity(0.7).ignoresSafeArea()
         ProgressView().controlSize(.large).tint(Theme.accent)
       }
     }
@@ -114,7 +115,7 @@ struct SignInView: View {
         } onCompletion: { result in
           auth.handleAppleCompletion(result)
         }
-        .signInWithAppleButtonStyle(.black)
+        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
         .frame(height: 54)
         .clipShape(Capsule())
       }
@@ -154,12 +155,16 @@ struct SignInView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .keyboardType(.emailAddress)
+        .foregroundStyle(Theme.ink)
+        .tint(Theme.accent)
         .padding(Theme.md)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
         .overlay(
           RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline, lineWidth: 1))
 
       SecureField("Password (6+ characters)", text: $password)
+        .foregroundStyle(Theme.ink)
+        .tint(Theme.accent)
         .padding(Theme.md)
         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
         .overlay(

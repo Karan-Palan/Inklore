@@ -43,6 +43,7 @@ struct InkflowApp: App {
       ContentView()
         .environment(auth)
         .environment(\.appRouter, router)
+        .tint(Theme.accent)
     }
     .modelContainer(container)
   }

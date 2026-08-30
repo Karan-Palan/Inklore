@@ -23,7 +23,7 @@ struct PdfReaderView: View {
 
   var body: some View {
     ZStack {
-      Color(.systemGray6).ignoresSafeArea()
+      Theme.paper.ignoresSafeArea()
 
       if let pdfDocument {
         PdfKitView(
