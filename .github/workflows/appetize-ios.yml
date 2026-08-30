@@ -1,0 +1,79 @@
+name: Build and publish iOS simulator
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/elevenlabs-video-mode
+    paths:
+      - "ios/**"
+      - ".github/workflows/appetize-ios.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  simulator-build:
+    name: iOS 26 ARM simulator build
+    runs-on: macos-26
+    timeout-minutes: 25
+    env:
+      APPETIZE_API_TOKEN: ${{ secrets.APPETIZE_API_TOKEN }}
+      APPETIZE_PUBLIC_KEY: ${{ secrets.APPETIZE_PUBLIC_KEY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+
+      - name: Build ReadSync for ARM Simulator
+        run: |
+          xcodebuild \
+            -project ios/ReadSync.xcodeproj \
+            -scheme ReadSync \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package Appetize simulator bundle
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/DerivedData/Build/Products/Debug-iphonesimulator/ReadSync.app \
+            ReadSync-Appetize.zip
+
+      - name: Preserve simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ReadSync-Appetize-${{ github.sha }}
+          path: ReadSync-Appetize.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload to Appetize
+        if: ${{ env.APPETIZE_API_TOKEN != '' }}
+        run: |
+          endpoint="https://api.appetize.io/v1/apps"
+          if [ -n "$APPETIZE_PUBLIC_KEY" ]; then
+            endpoint="$endpoint/$APPETIZE_PUBLIC_KEY"
+          fi
+          response=$(curl --fail --silent --show-error -X POST "$endpoint" \
+            -H "X-API-KEY: $APPETIZE_API_TOKEN" \
+            -F "file=@ReadSync-Appetize.zip" \
+            -F "platform=ios" \
+            -F "note=ReadSync video mode ${GITHUB_SHA}" \
+            -F "appPermissions.run=authenticated")
+          build_id=$(printf '%s' "$response" | jq -r '.publicKey // .buildId // empty')
+          if [ -z "$build_id" ]; then
+            echo "Appetize did not return a build identifier" >&2
+            exit 1
+          fi
+          url="https://appetize.io/app/${build_id}?device=iphone11pro&osVersion=26.0"
+          echo "### Appetize test build" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Run ReadSync on iPhone 11 Pro / iOS 26]($url)" >> "$GITHUB_STEP_SUMMARY"
