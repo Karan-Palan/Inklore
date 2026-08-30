@@ -95,7 +95,7 @@ struct SignInView: View {
       }
       .frame(height: 160)
 
-      Text("ReadSync")
+      Text("Inkflow")
         .font(.system(.largeTitle, design: .serif).weight(.bold))
         .foregroundStyle(Theme.ink)
       Text("Read or listen to any book. Track your progress across both.")

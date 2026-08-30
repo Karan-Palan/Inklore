@@ -4,7 +4,7 @@ import Security
 /// Secure persistence for the signed-in `AuthSession`. Tokens are stored in the
 /// iOS Keychain (not UserDefaults) so they survive launches but stay protected.
 enum AuthKeychain {
-  private static let service = "app.10x.readsync.auth"
+  private static let service = "app.10x.inkflow.auth"
   private static let account = "session"
 
   static func save(_ session: AuthSession) {

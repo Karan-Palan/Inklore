@@ -1,4 +1,4 @@
-"""ReadSync backend entrypoint.
+"""Inkflow backend entrypoint.
 
 Exposes a health check and the daily-digest route. The digest can be triggered
 immediately for the signed-in user (POST /api/v1/daily-digest) or run for every
@@ -6,12 +6,15 @@ subscriber by the scheduled cron job in app/jobs/daily_digest_job.py.
 """
 from fastapi import FastAPI
 
-from app.routes import ai, daily_digest
+from app.routes import ai, cron, daily_digest, link_import, video_summaries
 
-app = FastAPI(title="ReadSync Backend")
+app = FastAPI(title="Inkflow Backend")
 
 app.include_router(daily_digest.router)
 app.include_router(ai.router)
+app.include_router(link_import.router)
+app.include_router(video_summaries.router)
+app.include_router(cron.router)
 
 
 @app.get("/healthz")

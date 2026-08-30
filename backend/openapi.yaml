@@ -1,7 +1,7 @@
 openapi: 3.0.3
 x-10x-generated-openapi: true
 info:
-  title: "ReadSync" Backend
+  title: "Inkflow Backend"
   version: 1.0.0
 servers:
   - url: https://{project_ref}.api.10x.app
@@ -9,6 +9,76 @@ servers:
       project_ref:
         default: project
 paths:
+  "/api/v1/link-import":
+    post:
+      operationId: "create_link_import"
+      summary: "Import a public article or document link"
+      description: "Extracts readable article text server-side, or validates a direct PDF/EPUB/DOCX/RTF file for device-local import. Private and non-public network destinations are rejected."
+      x-10x-route-name: "create_link_import"
+      x-10x-auth-policy: "none"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: {type: string, format: uri, minLength: 8, maxLength: 2048}
+      responses:
+        "200":
+          description: Reader-ready article or validated direct file
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kind, title, source_name, source_url]
+                properties:
+                  kind: {type: string, enum: [article, file]}
+                  title: {type: string}
+                  author: {type: string, nullable: true}
+                  text: {type: string, nullable: true}
+                  source_name: {type: string}
+                  source_url: {type: string, format: uri}
+                  content_type: {type: string, nullable: true}
+        "403": {description: Private or blocked page}
+        "413": {description: Page exceeds safe import size}
+        "422": {description: Unsupported or unsafe link}
+      tags: [api]
+  "/api/v1/voices":
+    get:
+      operationId: "get_voices"
+      summary: "List available ElevenLabs narration voices"
+      description: "Returns display-safe provider metadata and preview URLs. Provider credentials remain server-side."
+      x-10x-route-name: "get_voices"
+      x-10x-auth-policy: "none"
+      responses:
+        "200":
+          description: Voice catalogue
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [provider, voices]
+                properties:
+                  provider: {type: string, enum: [elevenlabs]}
+                  voices:
+                    type: array
+                    items:
+                      type: object
+                      required: [voice_id, name, labels]
+                      properties:
+                        voice_id: {type: string}
+                        name: {type: string}
+                        category: {type: string, nullable: true}
+                        description: {type: string, nullable: true}
+                        preview_url: {type: string, format: uri, nullable: true}
+                        labels:
+                          type: object
+                          additionalProperties: {type: string}
+        "503":
+          description: ElevenLabs voice catalogue unavailable
+      tags: [api]
   "/api/v1/summaries":
     post:
       operationId: "create_summary"
@@ -21,12 +91,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [book_title, section_title, scope, text]
+              required: [book_title, section_title, text]
               properties:
                 book_title: {type: string, maxLength: 300}
                 author: {type: string, maxLength: 300}
                 section_title: {type: string, maxLength: 300}
-                scope: {type: string, enum: [chapter, book]}
                 text: {type: string, minLength: 80, maxLength: 60000}
       responses:
         "200":

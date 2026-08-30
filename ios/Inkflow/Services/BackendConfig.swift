@@ -33,6 +33,6 @@ enum BackendConfig {
   static var isDataReady: Bool { TenxProject.dataAPIURL != nil }
 
   /// The OAuth redirect this app listens for (registered URL scheme).
-  static let redirectScheme = "readsync"
+  static let redirectScheme = "inkflow"
   static var redirectURL: String { "\(redirectScheme)://auth-callback" }
 }
