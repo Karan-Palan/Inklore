@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
-               BuildableName = "ReadSync.app"
-               BlueprintName = "ReadSync"
-               ReferencedContainer = "container:ReadSync.xcodeproj">
+               BlueprintIdentifier = "5CDC0B7F0D148FC61EAD1BEA"
+               BuildableName = "Inkflow.app"
+               BlueprintName = "Inkflow"
+               ReferencedContainer = "container:Inkflow.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,10 +32,10 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
-            BuildableName = "ReadSync.app"
-            BlueprintName = "ReadSync"
-            ReferencedContainer = "container:ReadSync.xcodeproj">
+            BlueprintIdentifier = "5CDC0B7F0D148FC61EAD1BEA"
+            BuildableName = "Inkflow.app"
+            BlueprintName = "Inkflow"
+            ReferencedContainer = "container:Inkflow.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,10 +44,10 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "7CACB8565959F171C03D3994"
-               BuildableName = "ReadSyncTests.xctest"
-               BlueprintName = "ReadSyncTests"
-               ReferencedContainer = "container:ReadSync.xcodeproj">
+               BlueprintIdentifier = "2ECD69E18A50326D55C59641"
+               BuildableName = "InkflowTests.xctest"
+               BlueprintName = "InkflowTests"
+               ReferencedContainer = "container:Inkflow.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -81,7 +81,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "TENX_PROJECT_API_URL"
-            value = "https://readsync-api.vercel.app"
+            value = "https://inkflow-api.vercel.app"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
@@ -110,10 +110,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
-            BuildableName = "ReadSync.app"
-            BlueprintName = "ReadSync"
-            ReferencedContainer = "container:ReadSync.xcodeproj">
+            BlueprintIdentifier = "5CDC0B7F0D148FC61EAD1BEA"
+            BuildableName = "Inkflow.app"
+            BlueprintName = "Inkflow"
+            ReferencedContainer = "container:Inkflow.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -146,7 +146,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "TENX_PROJECT_API_URL"
-            value = "https://readsync-api.vercel.app"
+            value = "https://inkflow-api.vercel.app"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
@@ -171,10 +171,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "3D68E8AF68C4A0826FED7A8F"
-            BuildableName = "ReadSync.app"
-            BlueprintName = "ReadSync"
-            ReferencedContainer = "container:ReadSync.xcodeproj">
+            BlueprintIdentifier = "5CDC0B7F0D148FC61EAD1BEA"
+            BuildableName = "Inkflow.app"
+            BlueprintName = "Inkflow"
+            ReferencedContainer = "container:Inkflow.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -207,7 +207,7 @@
          </EnvironmentVariable>
          <EnvironmentVariable
             key = "TENX_PROJECT_API_URL"
-            value = "https://readsync-api.vercel.app"
+            value = "https://inkflow-api.vercel.app"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable

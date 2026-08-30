@@ -1,26 +1,26 @@
-name: ReadSync
+name: Inkflow
 targets:
-  ReadSync:
+  Inkflow:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: ReadSync
+      - path: Inkflow
       - path: Generated
 
 
     settings:
       base:
-        PRODUCT_NAME: ReadSync
-        PRODUCT_BUNDLE_IDENTIFIER: app.10x.readsync
+        PRODUCT_NAME: Inkflow
+        PRODUCT_BUNDLE_IDENTIFIER: app.inkflow.reader
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: ReadSync/Info.plist
+        INFOPLIST_FILE: Inkflow/Info.plist
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: 1
         CODE_SIGN_STYLE: Automatic
         SWIFT_EMIT_LOC_STRINGS: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGN_ENTITLEMENTS: ReadSync/ReadSync.entitlements
+        CODE_SIGN_ENTITLEMENTS: Inkflow/Inkflow.entitlements
         ALWAYS_SEARCH_USER_PATHS: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_VERSION: "5.0"
@@ -29,21 +29,24 @@ targets:
           ONLY_ACTIVE_ARCH: YES
     scheme:
       testTargets:
-        - ReadSyncTests
+        - InkflowTests
       environmentVariables:
         'SUPABASE_ANON_KEY': 'sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x'
         'SUPABASE_PUBLISHABLE_KEY': 'sb_publishable_4iWHP8idnh67B74KEOAviQ_OP87uA_x'
         'SUPABASE_URL': 'https://kagcljttmeyqexmwgfyu.supabase.co'
         'TENX_AUTH_BASE_URL': 'https://prv-8fbe26fba35f456c.preview.10x.app/auth'
         'TENX_DATA_API_URL': 'https://ep-small-dawn-atpg7xjo.apirest.c-9.us-east-1.aws.neon.tech/neondb/rest/v1'
-        'TENX_PROJECT_API_URL': 'https://readsync-api.vercel.app'
+        'TENX_PROJECT_API_URL': 'https://inkflow-api.vercel.app'
         'TENX_READY_AUTH_METHODS': 'emailPassword'
         'TENX_STORAGE_BASE_URL': 'https://prv-8fbe26fba35f456c.preview.10x.app/storage'
-  ReadSyncTests:
+  InkflowTests:
     type: bundle.unit-test
     platform: iOS
     deploymentTarget: "26.0"
     sources:
-      - path: ReadSyncTests
+      - path: InkflowTests
     dependencies:
-      - target: ReadSync
+      - target: Inkflow
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

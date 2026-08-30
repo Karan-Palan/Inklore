@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct ReadSyncApp: App {
+struct InkflowApp: App {
   let container: ModelContainer
   /// These shared observable instances must be injected at the scene root.
   /// Keeping the injection outside `ContentView` means lazily-created TabView

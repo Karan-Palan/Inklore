@@ -4,7 +4,7 @@ public enum TenxProject {
     // The released iOS app talks to the public backend. Scheme environment
     // variables are available only to local Debug runs, so the compiled
     // fallback must also be the production API for TestFlight and App Store.
-    public static let projectAPIURL = resolvedURL("TENX_PROJECT_API_URL", fallback: "https://readsync-api.vercel.app")
+    public static let projectAPIURL = resolvedURL("TENX_PROJECT_API_URL", fallback: "https://inkflow-reader-api.vercel.app")
     public static let authBaseURL = resolvedURL("TENX_AUTH_BASE_URL", fallback: "https://prv-8fbe26fba35f456c.preview.10x.app/auth")
     public static let storageBaseURL = resolvedURL("TENX_STORAGE_BASE_URL", fallback: "https://prv-8fbe26fba35f456c.preview.10x.app/storage")
     public static let requestTimeoutInterval: TimeInterval = 20
