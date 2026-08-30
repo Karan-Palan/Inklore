@@ -31,10 +31,123 @@ struct NarrationVoice: Identifiable, Hashable {
   var avVoice: AVSpeechSynthesisVoice? { AVSpeechSynthesisVoice(identifier: id) }
 }
 
+/// A server-curated ElevenLabs voice. Only public display metadata and the
+/// provider preview URL reach the device; the ElevenLabs credential never does.
+struct ElevenLabsVoice: Identifiable, Hashable, Codable, Sendable {
+  let id: String
+  let name: String
+  let category: String?
+  let voiceDescription: String?
+  let previewURLString: String?
+  let labels: [String: String]
+
+  enum CodingKeys: String, CodingKey {
+    case id = "voice_id"
+    case name
+    case category
+    case voiceDescription = "description"
+    case previewURLString = "preview_url"
+    case labels
+  }
+
+  var previewURL: URL? {
+    guard let previewURLString else { return nil }
+    return URL(string: previewURLString)
+  }
+
+  var subtitle: String {
+    let details = [labels["gender"], labels["accent"], labels["age"]]
+      .compactMap { $0 }
+      .filter { !$0.isEmpty }
+    if !details.isEmpty { return details.joined(separator: " · ") }
+    return category?.capitalized ?? "ElevenLabs voice"
+  }
+}
+
+/// Backend contracts for the cloud voice catalogue and bounded narration route.
+/// Keeping these client models here avoids exposing an API key or provider URL
+/// anywhere in the iOS project.
+enum ElevenLabsCatalogService {
+  private struct Response: Decodable {
+    let provider: String
+    let voices: [ElevenLabsVoice]
+  }
+
+  static func loadVoices() async throws -> [ElevenLabsVoice] {
+    let response = try await BackendClient().get(Response.self, path: "/api/v1/voices")
+    guard response.provider == "elevenlabs" else {
+      throw VoiceServiceError.unsupportedProvider
+    }
+    return response.voices.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+  }
+}
+
+enum VoiceServiceError: LocalizedError {
+  case unsupportedProvider
+
+  var errorDescription: String? {
+    switch self {
+    case .unsupportedProvider: return "The voice service returned an unsupported catalogue."
+    }
+  }
+}
+
+struct CloudNarrationAlignment: Decodable, Sendable {
+  let characters: [String]
+  let characterStartTimes: [Double]
+  let characterEndTimes: [Double]
+
+  enum CodingKeys: String, CodingKey {
+    case characters
+    case characterStartTimes = "character_start_times_seconds"
+    case characterEndTimes = "character_end_times_seconds"
+  }
+}
+
+struct CloudNarrationResponse: Decodable, Sendable {
+  let audioBase64: String
+  let alignment: CloudNarrationAlignment?
+  let normalizedAlignment: CloudNarrationAlignment?
+  let voiceID: String
+
+  enum CodingKeys: String, CodingKey {
+    case audioBase64 = "audio_base64"
+    case alignment
+    case normalizedAlignment = "normalized_alignment"
+    case voiceID = "voice_id"
+  }
+}
+
+enum CloudNarrationService {
+  private struct Request: Encodable {
+    let text: String
+    let voice_id: String
+  }
+
+  /// A dedicated, bounded session turns a stalled serverless/provider request
+  /// into a recoverable fallback instead of an indefinitely spinning player.
+  private static let narrationSession: URLSession = {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.timeoutIntervalForRequest = 50
+    configuration.timeoutIntervalForResource = 55
+    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+    return URLSession(configuration: configuration)
+  }()
+
+  static func narrate(text: String, voiceID: String) async throws -> CloudNarrationResponse {
+    try await BackendClient(session: narrationSession).send(
+      CloudNarrationResponse.self,
+      path: "/api/v1/narration",
+      body: Request(text: text, voice_id: voiceID))
+  }
+}
+
 /// Builds and caches the catalog of installed voices.
 enum VoiceCatalog {
   /// Persisted user choice key.
-  static let preferenceKey = "readsync.preferredVoiceID"
+  static let preferenceKey = "inkflow.preferredVoiceID"
+  private static let providerPreferenceKey = "inkflow.preferredVoiceProvider"
+  private static let elevenLabsPreferenceKey = "inkflow.preferredElevenLabsVoice"
 
   /// All English narration voices on this device, sorted best-quality first.
   /// We exclude Apple's "novelty" voices (Bells, Bubbles, Zarvox, …) and the
@@ -92,6 +205,20 @@ enum VoiceCatalog {
 
   static func savePreference(_ voice: NarrationVoice) {
     UserDefaults.standard.set(voice.id, forKey: preferenceKey)
+    UserDefaults.standard.set("system", forKey: providerPreferenceKey)
+  }
+
+  static func preferredElevenLabsVoice() -> ElevenLabsVoice? {
+    guard UserDefaults.standard.string(forKey: providerPreferenceKey) == "elevenlabs",
+      let data = UserDefaults.standard.data(forKey: elevenLabsPreferenceKey)
+    else { return nil }
+    return try? JSONDecoder().decode(ElevenLabsVoice.self, from: data)
+  }
+
+  static func savePreference(_ voice: ElevenLabsVoice) {
+    guard let data = try? JSONEncoder().encode(voice) else { return }
+    UserDefaults.standard.set(data, forKey: elevenLabsPreferenceKey)
+    UserDefaults.standard.set("elevenlabs", forKey: providerPreferenceKey)
   }
 
   private static func makeVoice(_ v: AVSpeechSynthesisVoice) -> NarrationVoice {

@@ -7,26 +7,37 @@ struct AudioWaveform: View {
   var level: Double
   var isPlaying: Bool
   var tint: Color = .white
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private let barCount = 32
 
   var body: some View {
-    TimelineView(.animation(minimumInterval: 0.08)) { timeline in
-      let t = timeline.date.timeIntervalSinceReferenceDate
-      HStack(alignment: .center, spacing: 4) {
-        ForEach(0..<barCount, id: \.self) { i in
-          Capsule()
-            .fill(tint.opacity(0.85))
-            .frame(width: 3, height: barHeight(i, t))
+    Group {
+      if reduceMotion {
+        bars(at: 0)
+      } else {
+        TimelineView(.animation(minimumInterval: 0.08)) { timeline in
+          bars(at: timeline.date.timeIntervalSinceReferenceDate)
         }
       }
-      .frame(height: 56)
-      .animation(.easeOut(duration: 0.12), value: level)
     }
+    .frame(height: 48)
+    .accessibilityHidden(true)
+  }
+
+  private func bars(at time: TimeInterval) -> some View {
+    HStack(alignment: .center, spacing: 4) {
+      ForEach(0..<barCount, id: \.self) { i in
+        Capsule()
+          .fill(tint.opacity(isPlaying ? 0.88 : 0.42))
+          .frame(width: 3, height: barHeight(i, time))
+      }
+    }
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: level)
   }
 
   private func barHeight(_ index: Int, _ t: Double) -> CGFloat {
-    guard isPlaying else { return 4 }
+    guard isPlaying else { return 3 }
     // Combine a traveling sine wave with the live amplitude for organic motion.
     let phase = Double(index) / Double(barCount) * .pi * 4
     let wave = (sin(t * 6 + phase) + 1) / 2  // 0...1
