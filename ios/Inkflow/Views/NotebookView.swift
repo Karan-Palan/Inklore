@@ -176,7 +176,7 @@ struct NotebookView: View {
                 .font(.caption.weight(.bold))
                 .tracking(1.1)
                 .foregroundStyle(Theme.inkFaint)
-              Text("Return to every chapter in a minute.")
+              Text("Choose a book, then return to the chapters that matter.")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(Theme.ink)
             }
@@ -208,7 +208,7 @@ struct NotebookView: View {
             .font(.headline)
             .foregroundStyle(Theme.ink)
             .lineLimit(2)
-          Text(current.map { "Current: \($0.title)" } ?? "Open chapter summaries")
+          Text(current.map { "Continue with \($0.title)" } ?? "Open chapter workspace")
             .font(.caption)
             .foregroundStyle(Theme.inkSoft)
             .lineLimit(1)
@@ -224,8 +224,7 @@ struct NotebookView: View {
     .buttonStyle(.plain)
     .padding(Theme.lg)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
-    .overlay(RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
+    .background(Theme.surfaceAlt.opacity(0.72), in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
   }
 
   private func summaryOffset(for book: Book) -> Int {

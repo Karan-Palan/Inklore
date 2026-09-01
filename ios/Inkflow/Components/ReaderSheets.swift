@@ -225,6 +225,34 @@ enum ChapterSummaryContent {
     return rendered
   }
 
+  /// The short brief is kept separate from its Markdown presentation so the
+  /// chapter workspace can give it visual priority without reparsing a heading.
+  static func brief(for section: ChapterSummarySection, generatedText: String? = nil) -> [String] {
+    let generated = generatedText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let source = generated.isEmpty ? section.text : generated
+    return briefSentences(
+      source: summaryBody(in: source, chapterTitle: section.title),
+      fallback: summaryBody(in: section.text, chapterTitle: section.title))
+  }
+
+  /// Source-grounded supporting ideas for the chapter workspace. These are not
+  /// generated claims: they are useful sentences from the imported chapter.
+  static func keyIdeas(for section: ChapterSummarySection) -> [String] {
+    let source = summaryBody(in: section.text, chapterTitle: section.title)
+    let sentences = sentenceList(from: source).filter(isUsefulSentence)
+    let brief = Set(brief(for: section))
+    let keywords = frequentTerms(in: source)
+    let ideas = sentences.enumerated()
+      .filter { !brief.contains($0.element) }
+      .sorted {
+        sentenceScore($0.element, keywords: keywords, position: $0.offset)
+          > sentenceScore($1.element, keywords: keywords, position: $1.offset)
+      }
+      .prefix(3)
+      .map(\.element)
+    return ideas.isEmpty ? Array(brief) : ideas
+  }
+
   /// The summary contract everywhere in the app: one chapter heading followed
   /// by exactly two short, source-grounded sentences. AI output is normalized
   /// through the same renderer so a verbose provider response cannot reintroduce
@@ -257,6 +285,10 @@ enum ChapterSummaryContent {
   }
 
   private static func conciseMarkdown(title: String, source: String, fallback: String) -> String {
+    "# \(title)\n\n\(briefSentences(source: source, fallback: fallback).joined(separator: "\n\n"))"
+  }
+
+  private static func briefSentences(source: String, fallback: String) -> [String] {
     var sentences = sentenceList(from: source)
     if sentences.count < 2 {
       sentences += sentenceList(from: fallback).filter { candidate in
@@ -264,16 +296,15 @@ enum ChapterSummaryContent {
       }
     }
     if sentences.isEmpty {
-      sentences = [
+      return [
         "No extractable text was found for this chapter yet.",
         "Try re-importing the source with text recognition enabled.",
       ]
-    } else if sentences.count == 1 {
-      sentences.append("The available text is brief, so this summary stays close to the chapter's opening idea.")
     }
-
-    let selected = selectTwoSentences(from: sentences)
-    return "# \(title)\n\n\(selected.joined(separator: "\n\n"))"
+    if sentences.count == 1 {
+      return [sentences[0], "The available text is brief, so this summary stays close to the chapter's opening idea."]
+    }
+    return selectTwoSentences(from: sentences)
   }
 
   private static func selectTwoSentences(from sentences: [String]) -> [String] {
@@ -459,6 +490,16 @@ struct ChapterSummaryMarkdownView: View {
           .font(.body)
           .foregroundStyle(Theme.ink)
       }
+    case .ordered(let marker, let value):
+      HStack(alignment: .firstTextBaseline, spacing: Theme.sm) {
+        Text(marker)
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(Theme.accent)
+          .frame(minWidth: 18, alignment: .trailing)
+        inlineText(value)
+          .font(.body)
+          .foregroundStyle(Theme.ink)
+      }
     case .quote(let value):
       HStack(alignment: .top, spacing: Theme.md) {
         RoundedRectangle(cornerRadius: 2).fill(Theme.accent).frame(width: 3)
@@ -497,8 +538,26 @@ struct ChapterSummaryMarkdownView: View {
     var result: [Block] = []
     var inCode = false
     var codeLines: [String] = []
+    var paragraphLines: [String] = []
+    var quoteLines: [String] = []
+
+    func flushParagraph() {
+      guard !paragraphLines.isEmpty else { return }
+      result.append(.paragraph(paragraphLines.joined(separator: " ")))
+      paragraphLines.removeAll()
+    }
+
+    func flushQuote() {
+      guard !quoteLines.isEmpty else { return }
+      result.append(.quote(quoteLines.joined(separator: " ")))
+      quoteLines.removeAll()
+    }
+
     for line in markdown.components(separatedBy: .newlines) {
-      if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+      let trimmed = line.trimmingCharacters(in: .whitespaces)
+      if trimmed.hasPrefix("```") {
+        flushParagraph()
+        flushQuote()
         if inCode {
           result.append(.code(codeLines.joined(separator: "\n")))
           codeLines.removeAll()
@@ -507,28 +566,57 @@ struct ChapterSummaryMarkdownView: View {
       } else if inCode {
         codeLines.append(line)
       } else if line.hasPrefix("### ") {
+        flushParagraph()
+        flushQuote()
         result.append(.heading(2, String(line.dropFirst(4))))
       } else if line.hasPrefix("## ") {
+        flushParagraph()
+        flushQuote()
         result.append(.heading(2, String(line.dropFirst(3))))
       } else if line.hasPrefix("# ") {
+        flushParagraph()
+        flushQuote()
         result.append(.heading(1, String(line.dropFirst(2))))
       } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+        flushParagraph()
+        flushQuote()
         result.append(.bullet(String(line.dropFirst(2))))
       } else if line.hasPrefix("> ") {
-        result.append(.quote(String(line.dropFirst(2))))
-      } else if line.trimmingCharacters(in: .whitespaces).isEmpty {
-        result.append(.space)
+        flushParagraph()
+        quoteLines.append(String(line.dropFirst(2)))
+      } else if let ordered = orderedItem(in: trimmed) {
+        flushParagraph()
+        flushQuote()
+        result.append(.ordered(ordered.marker, ordered.value))
+      } else if trimmed.isEmpty {
+        flushParagraph()
+        flushQuote()
+        if result.last != .space { result.append(.space) }
       } else {
-        result.append(.paragraph(line))
+        flushQuote()
+        paragraphLines.append(trimmed)
       }
     }
+    flushParagraph()
+    flushQuote()
     if !codeLines.isEmpty { result.append(.code(codeLines.joined(separator: "\n"))) }
     return result
   }
 
-  private enum Block {
+  private func orderedItem(in line: String) -> (marker: String, value: String)? {
+    guard let dot = line.firstIndex(of: ".") else { return nil }
+    let number = line[..<dot]
+    let afterDot = line.index(after: dot)
+    guard !number.isEmpty, number.allSatisfy(\.isNumber),
+      afterDot < line.endIndex, line[afterDot] == " "
+    else { return nil }
+    return ("\(number).", String(line[line.index(after: afterDot)...]))
+  }
+
+  private enum Block: Equatable {
     case heading(Int, String)
     case bullet(String)
+    case ordered(String, String)
     case quote(String)
     case code(String)
     case paragraph(String)
@@ -536,13 +624,13 @@ struct ChapterSummaryMarkdownView: View {
   }
 }
 
-/// A book-first summary sheet used by the Notes tab. It deliberately exposes
-/// every detected source chapter at once: a heading and two-sentence recap are
-/// quicker to scan than the former long-form guide sections.
+/// The book layer of the notebook summary hierarchy. A book first opens to a
+/// calm chapter index; selecting a chapter opens its focused workspace.
 struct BookSummaryListView: View {
   @Bindable var book: Book
   let initialOffset: Int
   @Environment(\.dismiss) private var dismiss
+  @State private var selectedSection: ChapterSummarySection?
 
   private var sections: [ChapterSummarySection] { ChapterSummaryContent.sections(for: book) }
   private var activeSectionID: String? {
@@ -560,40 +648,59 @@ struct BookSummaryListView: View {
           }
         } else {
           ScrollView {
-            LazyVStack(alignment: .leading, spacing: Theme.md) {
-              VStack(alignment: .leading, spacing: Theme.xs) {
-                Text("\(sections.count) DETECTED \(sections.count == 1 ? "CHAPTER" : "CHAPTERS")")
-                  .font(.caption.weight(.bold))
-                  .tracking(1)
-                  .foregroundStyle(Theme.inkFaint)
-                Text("A short return to every chapter.")
-                  .font(.title3.weight(.bold))
-                  .foregroundStyle(Theme.ink)
+            LazyVStack(alignment: .leading, spacing: Theme.sm) {
+              HStack(alignment: .top, spacing: Theme.md) {
+                BookCover(book: book, width: 54, showAudioBadge: false)
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(book.title)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(2)
+                  Text(book.author)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.inkSoft)
+                  Text("\(sections.count) \(sections.count == 1 ? "chapter" : "chapters") · two-minute return")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .padding(.top, Theme.xs)
+                }
               }
-              .padding(.bottom, Theme.xs)
+              .padding(.bottom, Theme.md)
+
+              Text("CHAPTERS")
+                .font(.caption.weight(.bold))
+                .tracking(1)
+                .foregroundStyle(Theme.inkFaint)
 
               ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
-                VStack(alignment: .leading, spacing: Theme.md) {
-                  HStack {
-                    Text("CHAPTER \(index + 1)")
-                      .font(.system(size: 10, weight: .bold))
-                      .tracking(1)
+                Button { selectedSection = section } label: {
+                  HStack(alignment: .top, spacing: Theme.md) {
+                    Text("\(index + 1)")
+                      .font(.subheadline.weight(.bold))
                       .foregroundStyle(section.id == activeSectionID ? Theme.accent : Theme.inkFaint)
-                    Spacer()
-                    if section.id == activeSectionID {
-                      Text("CURRENT")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(Theme.accent)
+                      .frame(width: 24, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 5) {
+                      Text(section.title)
+                        .font(.headline)
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(2)
+                      Text(ChapterSummaryContent.brief(for: section).joined(separator: " "))
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.inkSoft)
+                        .lineLimit(3)
                     }
+                    Spacer(minLength: Theme.xs)
+                    Image(systemName: "chevron.right")
+                      .font(.caption.weight(.bold))
+                      .foregroundStyle(Theme.inkFaint)
+                      .padding(.top, 4)
                   }
-                  ChapterSummaryMarkdownView(markdown: ChapterSummaryContent.markdown(for: section))
+                  .padding(.vertical, Theme.md)
+                  .contentShape(Rectangle())
                 }
-                .padding(Theme.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
-                .overlay {
-                  RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous)
-                    .strokeBorder(section.id == activeSectionID ? Theme.accent.opacity(0.4) : Theme.hairline)
+                .buttonStyle(.plain)
+                .background(alignment: .bottom) {
+                  if index < sections.count - 1 { Rectangle().fill(Theme.hairline).frame(height: 1) }
                 }
               }
             }
@@ -611,6 +718,11 @@ struct BookSummaryListView: View {
         }
       }
     }
+    .sheet(item: $selectedSection) { section in
+      ChapterSummaryView(book: book, initialOffset: section.startOffset, initialSectionID: section.id)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
   }
 }
 
@@ -620,6 +732,7 @@ struct BookSummaryListView: View {
 struct ChapterSummaryView: View {
   @Bindable var book: Book
   let initialOffset: Int
+  let initialSectionID: String?
   var initialTab: Tab = .summary
 
   @Environment(\.dismiss) private var dismiss
@@ -635,14 +748,20 @@ struct ChapterSummaryView: View {
   @FocusState private var thoughtFocused: Bool
 
   enum Tab: String, CaseIterable, Identifiable {
-    case summary = "Summary"
-    case thoughts = "My thoughts"
+    case summary = "Chapter"
+    case thoughts = "My Thoughts"
     var id: String { rawValue }
   }
 
-  init(book: Book, initialOffset: Int, initialTab: Tab = .summary) {
+  init(
+    book: Book,
+    initialOffset: Int,
+    initialSectionID: String? = nil,
+    initialTab: Tab = .summary
+  ) {
     self.book = book
     self.initialOffset = initialOffset
+    self.initialSectionID = initialSectionID
     self.initialTab = initialTab
     _selectedTab = State(initialValue: initialTab)
   }
@@ -685,7 +804,7 @@ struct ChapterSummaryView: View {
         }
       }
       .background(Theme.paper)
-      .navigationTitle("Chapter summary")
+      .navigationTitle("Chapter workspace")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -731,59 +850,43 @@ struct ChapterSummaryView: View {
           .foregroundStyle(Theme.accent)
       }
       .padding(Theme.md)
-      .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
-      .overlay(
-        RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
+      .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
     }
     .buttonStyle(.plain)
   }
 
   private func summaryContent(_ section: ChapterSummarySection) -> some View {
     VStack(alignment: .leading, spacing: Theme.lg) {
-      ChapterSummaryMarkdownView(
-        markdown: ChapterSummaryContent.markdown(for: section, generatedText: aiMarkdown)
-      )
-        .padding(Theme.lg)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
-        .overlay(
-          RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
+      briefPanel(for: section)
+      keyIdeasPanel(for: section)
+      highlightsPanel(for: section)
 
-      VStack(alignment: .leading, spacing: Theme.md) {
+      Button(action: { jumpToChapter(section) }) {
+        Label("Jump to chapter", systemImage: "arrow.right.circle.fill")
+          .font(.headline)
+          .frame(maxWidth: .infinity)
+      }
+      .buttonStyle(.borderedProminent)
+      .tint(Theme.accent)
+
+      HStack(spacing: Theme.lg) {
+        Button {
+          selectedTab = .thoughts
+          thoughtFocused = true
+        } label: {
+          Label("My Thoughts", systemImage: "square.and.pencil")
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.accent)
+
         Button {
           generateAISummary(for: section)
         } label: {
-          Label(
-            isGeneratingAI ? "Writing summary…" : "Refresh with AI",
-            systemImage: isGeneratingAI ? "hourglass" : "sparkles")
+          Label(isGeneratingAI ? "Writing brief…" : "Refresh brief", systemImage: "sparkles")
         }
-        .buttonStyle(.borderedProminent)
-        .tint(Theme.accent)
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Theme.inkSoft)
         .disabled(isGeneratingAI)
-
-        HStack(spacing: Theme.md) {
-          Button {
-            selectedTab = .thoughts
-            thoughtFocused = true
-          } label: {
-            Label("Add your thoughts", systemImage: "square.and.pencil")
-          }
-          .buttonStyle(.bordered)
-          .tint(Theme.accent)
-
-          if book.format == .text {
-            Button {
-              // Chapter selection is intentional backwards-capable reader
-              // navigation, unlike a stale mode-dismissal checkpoint.
-              book.updateCharacterOffset(section.startOffset, allowingBackward: true)
-              try? context.save()
-              dismiss()
-            } label: {
-              Label("Read chapter", systemImage: "book")
-            }
-            .buttonStyle(.bordered)
-            .tint(Theme.accent)
-          }
-        }
       }
 
       if isGeneratingAI {
@@ -798,10 +901,101 @@ struct ChapterSummaryView: View {
           .foregroundStyle(Theme.inkSoft)
       }
 
-      Text("AI uses only this chapter's text. Your local two-sentence summary is always available offline.")
+      Text("The brief is always two source-grounded sentences. AI only refreshes this chapter and never replaces your notes.")
       .font(.caption)
       .foregroundStyle(Theme.inkFaint)
     }
+  }
+
+  private func briefPanel(for section: ChapterSummarySection) -> some View {
+    VStack(alignment: .leading, spacing: Theme.md) {
+      Text("BRIEF")
+        .font(.caption.weight(.bold))
+        .tracking(1)
+        .foregroundStyle(Theme.accent)
+      ForEach(ChapterSummaryContent.brief(for: section, generatedText: aiMarkdown), id: \.self) { sentence in
+        Text(sentence)
+          .font(.body)
+          .foregroundStyle(Theme.ink)
+          .lineSpacing(3)
+      }
+    }
+    .padding(Theme.lg)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+  }
+
+  private func keyIdeasPanel(for section: ChapterSummarySection) -> some View {
+    VStack(alignment: .leading, spacing: Theme.md) {
+      Label("Key ideas", systemImage: "lightbulb")
+        .font(.headline)
+        .foregroundStyle(Theme.ink)
+      ForEach(ChapterSummaryContent.keyIdeas(for: section), id: \.self) { idea in
+        HStack(alignment: .top, spacing: Theme.sm) {
+          Circle().fill(Theme.accent).frame(width: 5, height: 5).padding(.top, 7)
+          Text(idea)
+            .font(.subheadline)
+            .foregroundStyle(Theme.inkSoft)
+            .lineSpacing(2)
+        }
+      }
+    }
+    .padding(.vertical, Theme.sm)
+  }
+
+  private func highlightsPanel(for section: ChapterSummarySection) -> some View {
+    let highlights = chapterHighlights(for: section)
+    return VStack(alignment: .leading, spacing: Theme.md) {
+      HStack {
+        Label("Highlights", systemImage: "highlighter")
+          .font(.headline)
+          .foregroundStyle(Theme.ink)
+        Spacer()
+        if !highlights.isEmpty {
+          Text("\(highlights.count)")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(Theme.inkFaint)
+        }
+      }
+      if highlights.isEmpty {
+        Text("Nothing highlighted here yet. Mark a passage while reading and it will appear here.")
+          .font(.subheadline)
+          .foregroundStyle(Theme.inkSoft)
+      } else {
+        ForEach(highlights) { highlight in
+          Text(highlight.text)
+            .font(.system(.subheadline, design: .serif).italic())
+            .foregroundStyle(Theme.inkSoft)
+            .lineLimit(4)
+            .padding(.leading, Theme.md)
+            .overlay(alignment: .leading) {
+              Capsule().fill(HighlightColor(rawValue: highlight.colorName)?.color ?? Theme.highlightYellow)
+                .frame(width: 3)
+            }
+        }
+      }
+    }
+    .padding(Theme.lg)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Theme.surfaceAlt.opacity(0.72), in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
+  }
+
+  private func chapterHighlights(for section: ChapterSummarySection) -> [Highlight] {
+    book.highlights
+      .filter { $0.startOffset >= section.startOffset && $0.startOffset < section.endOffset }
+      .sorted { $0.createdDate > $1.createdDate }
+  }
+
+  private func jumpToChapter(_ section: ChapterSummarySection) {
+    if book.isEpub, let index = sections.firstIndex(of: section) {
+      _ = book.updateEpubPosition(
+        spineIndex: index, scroll: 0, spineCount: sections.count,
+        characterOffset: section.startOffset, allowingBackward: true)
+    } else {
+      _ = book.updateCharacterOffset(section.startOffset, allowingBackward: true)
+    }
+    try? context.save()
+    dismiss()
   }
 
   private func thoughtsContent(_ section: ChapterSummarySection) -> some View {
@@ -833,9 +1027,7 @@ struct ChapterSummaryView: View {
         )
         .padding(Theme.lg)
         .frame(maxWidth: .infinity, minHeight: 260, alignment: .topLeading)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
-        .overlay(
-          RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
+        .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
       } else {
         TextEditor(text: $thoughtDraft)
           .focused($thoughtFocused)
@@ -844,7 +1036,7 @@ struct ChapterSummaryView: View {
           .scrollContentBackground(.hidden)
           .padding(Theme.md)
           .frame(minHeight: 260)
-          .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusMd))
+          .background(Theme.surfaceAlt, in: RoundedRectangle(cornerRadius: Theme.radiusMd, style: .continuous))
           .overlay(alignment: .topLeading) {
             if thoughtDraft.isEmpty {
               Text("## What stayed with me\n\n- A key idea\n- A question I still have\n\n> A passage worth remembering")
@@ -855,8 +1047,6 @@ struct ChapterSummaryView: View {
                 .allowsHitTesting(false)
             }
           }
-          .overlay(
-            RoundedRectangle(cornerRadius: Theme.radiusMd).strokeBorder(Theme.hairline))
       }
 
       Button(action: saveThought) {
@@ -879,7 +1069,8 @@ struct ChapterSummaryView: View {
   private func configureInitialChapter() {
     guard selectedChapterID.isEmpty else { return }
     selectedChapterID =
-      ChapterSummaryContent.section(for: book, offset: initialOffset)?.id
+      initialSectionID
+      ?? ChapterSummaryContent.section(for: book, offset: initialOffset)?.id
       ?? sections.first?.id ?? ""
     loadThought()
   }
