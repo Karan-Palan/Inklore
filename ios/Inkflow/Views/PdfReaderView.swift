@@ -43,10 +43,8 @@ struct PdfReaderView: View {
       if showChrome { chromeOverlay }
     }
     .statusBarHidden(!showChrome)
-    .onAppear {
-      load()
-      scheduleChromeFade()
-    }
+    .onAppear(perform: scheduleChromeFade)
+    .task { await load() }
     .task(id: chromeVisibilityToken) {
       guard showChrome, !voiceOverEnabled else { return }
       try? await Task.sleep(for: .seconds(4.5))
@@ -70,12 +68,15 @@ struct PdfReaderView: View {
 
   // MARK: Loading
 
-  private func load() {
+  private func load() async {
     openedAt = Date()
     book.lastOpenedDate = .now
     let url = PdfStore.fileURL(named: book.pdfFileName)
-    guard let doc = PDFDocument(url: url), doc.pageCount > 0 else {
-      loadFailed = true
+    let doc = await Task.detached(priority: .userInitiated) {
+      PDFDocument(url: url)
+    }.value
+    guard !Task.isCancelled, let doc, doc.pageCount > 0 else {
+      if !Task.isCancelled { loadFailed = true }
       return
     }
     pdfDocument = doc

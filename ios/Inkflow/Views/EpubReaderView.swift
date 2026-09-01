@@ -73,10 +73,8 @@ struct EpubReaderView: View {
         .allowsHitTesting(false)
     }
     .statusBarHidden(!showChrome)
-    .onAppear {
-      load()
-      scheduleChromeFade()
-    }
+    .onAppear(perform: scheduleChromeFade)
+    .task { await load() }
     .task(id: chromeVisibilityToken) {
       guard showChrome, !voiceOverEnabled else { return }
       try? await Task.sleep(for: .seconds(4.5))
@@ -109,11 +107,15 @@ struct EpubReaderView: View {
 
   // MARK: Loading
 
-  private func load() {
+  private func load() async {
     openedAt = Date()
     book.lastOpenedDate = .now
-    guard let doc = EpubDocument(folderName: book.epubFolderName) else {
-      loadFailed = true
+    let folderName = book.epubFolderName
+    let doc = await Task.detached(priority: .userInitiated) {
+      EpubDocument(folderName: folderName)
+    }.value
+    guard !Task.isCancelled, let doc else {
+      if !Task.isCancelled { loadFailed = true }
       return
     }
     document = doc
