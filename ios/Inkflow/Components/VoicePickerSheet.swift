@@ -4,7 +4,7 @@ import SwiftUI
 /// region alongside the server-curated ElevenLabs catalogue. Previews are safe
 /// public audio URLs; actual premium narration stays routed through Inkflow.
 struct VoicePickerSheet: View {
-  @Bindable var narrator: SpeechReader
+  let narrator: SpeechReader
   @Environment(\.dismiss) private var dismiss
   @State private var previewingVoiceID: String?
   @State private var elevenLabsVoices: [ElevenLabsVoice] = []

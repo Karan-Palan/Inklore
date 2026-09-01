@@ -10,10 +10,10 @@ struct PlayerView: View {
   @Bindable var book: Book
   @Environment(\.dismiss) private var dismiss
   @Environment(\.modelContext) private var context
+  @Environment(AudioPlaybackCoordinator.self) private var audioPlayback
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-  @State private var narrator = SpeechReader()
   @State private var presentReader = false
   @State private var showVoicePicker = false
   @State private var showSpeedSheet = false
@@ -21,9 +21,14 @@ struct PlayerView: View {
   @State private var scrubValue: Double = 0
   @State private var scrubbing = false
   @State private var openedAt = Date()
+  @State private var recordedListeningSession = false
 
   private let sleepOptions = [5, 10, 15, 30, 45, 60]
   private let speedMultiples: [Float] = [0.8, 1.0, 1.2, 1.5, 2.0]
+
+  /// The narrator belongs to the app-level coordinator so the UI can be
+  /// dismissed without tearing down the active background audio session.
+  private var narrator: SpeechReader { audioPlayback.narrator }
 
   /// After loading, use the narrator's retained text instead of rebuilding a
   /// sample book's `bodyText` on every waveform/word update.
@@ -76,31 +81,17 @@ struct PlayerView: View {
     }
     .safeAreaInset(edge: .top, spacing: 0) { topBar }
     .onAppear {
-      book.restoreCanonicalCharacterOffset()
-      let startOffset = narrationStartOffset
-      narrator.load(text: book.bodyText, startOffset: startOffset)
-      scrubValue = Double(startOffset)
+      audioPlayback.activate(book: book, context: context)
+      scrubValue = Double(narrator.charOffset)
+      openedAt = Date()
+      recordedListeningSession = false
     }
     .onChange(of: narrator.charOffset) { _, new in
       if !scrubbing { scrubValue = Double(new) }
-      // Keep the book's reading position synced live while listening, so the
-      // completion percentage matches whether the user reads or listens.
-      let narrationLength = (narrator.fullText as NSString).length
-      // AVSpeechSynthesizer emits a callback per word. Updating a SwiftData
-      // model for every callback causes needless view invalidations and disk
-      // autosave pressure, so checkpoint periodically and at completion.
-      if abs(book.charOffset - new) >= 500 || new >= narrationLength - 1 {
-        // The active audio head is an explicit seekable source, so a user can
-        // intentionally scrub backwards. Covered reader views use monotonic
-        // writes and cannot undo this newer position on disappearance.
-        book.updateCharacterOffset(new, allowingBackward: true)
-        syncNativePosition(from: new)
-      }
-      if new >= narrationLength - 1, narrationLength > 0 {
-        book.isFinished = true
-      }
+      // Persistence and native EPUB/PDF locator mirroring are owned by the
+      // coordinator, including while this view is not on screen.
     }
-    .onDisappear { commitAndStop() }
+    .onDisappear { commitProgress() }
     .fullScreenCover(isPresented: $presentReader) {
       BookReader(book: book)
     }
@@ -140,7 +131,7 @@ struct PlayerView: View {
   private var topBar: some View {
     HStack {
       Button {
-        commitAndStop()
+        commitProgress()
         dismiss()
       } label: {
         Image(systemName: "chevron.down")
@@ -475,57 +466,18 @@ struct PlayerView: View {
   }
 
   private func commitProgress() {
-    book.updateCharacterOffset(narrator.charOffset, allowingBackward: true)
-    syncNativePosition(from: narrator.charOffset)
-    book.lastOpenedDate = .now
+    audioPlayback.detachPlayer()
+    guard !recordedListeningSession else { return }
     let minutes = max(1, Int(Date().timeIntervalSince(openedAt) / 60))
     context.insert(ReadingSession(minutes: minutes, wasListening: true))
-    openedAt = Date()
+    recordedListeningSession = true
     try? context.save()
   }
 
-  private func commitAndStop() {
-    narrator.stop()
-    commitProgress()
-  }
-
-  /// All modes now resume from Book's shared text anchor. Native EPUB/PDF
-  /// locators are mirrored with it by `syncNativePosition`, so a return to the
-  /// visual reader cannot use an older page or chapter.
-  private var narrationStartOffset: Int {
-    min(max(0, book.canonicalCharacterOffset), max(book.bodyNSLength, 0))
-  }
-
-  private func syncNativePosition(from offset: Int) {
-    let narrationLength = (narrator.fullText as NSString).length
-    guard narrationLength > 0 else { return }
-    let fraction = min(1, max(0, Double(offset) / Double(narrationLength)))
-    if book.isPdf, book.pdfPageCount > 0 {
-      let pageIndex = min(
-        book.pdfPageCount - 1, max(0, Int(fraction * Double(book.pdfPageCount))))
-      book.updatePdfPosition(
-        pageIndex: pageIndex,
-        pageCount: book.pdfPageCount,
-        characterOffset: offset,
-        // A player seek is authoritative: it must also be able to replace a
-        // legacy/stale native page locator when the user scrubs to zero.
-        allowingBackward: true)
-    } else if book.isEpub, book.spineCount > 0 {
-      let raw = min(
-        Double(book.spineCount) - 0.000_001,
-        fraction * Double(book.spineCount))
-      let index = min(book.spineCount - 1, max(0, Int(raw)))
-      book.updateEpubPosition(
-        spineIndex: index,
-        scroll: raw - Double(index),
-        spineCount: book.spineCount,
-        characterOffset: offset,
-        allowingBackward: true)
-    }
-  }
 }
 
 #Preview {
   PlayerView(book: PreviewData.sampleBook)
     .modelContainer(PreviewData.container)
+    .environment(AudioPlaybackCoordinator())
 }

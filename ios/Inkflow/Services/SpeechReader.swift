@@ -1,6 +1,9 @@
 import AVFoundation
 import Foundation
+import MediaPlayer
+import SwiftData
 import SwiftUI
+import UIKit
 
 /// A single reader-facing narration engine with an on-device default and an
 /// optional, server-routed ElevenLabs voice. Cloud narration is deliberately
@@ -30,13 +33,23 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
   private let cloudCacheLimit = 6
 
   // Observable state for the UI.
-  var isPlaying = false
+  var isPlaying = false {
+    didSet {
+      guard oldValue != isPlaying else { return }
+      onPlaybackStateChange?(isPlaying)
+    }
+  }
   var rate: Float = AVSpeechUtteranceDefaultSpeechRate
   var pitch: Float = 1.0
   /// Global range of the word currently being spoken (for highlighting).
   var spokenWordRange: NSRange?
   /// Global character offset of the reading head.
-  var charOffset: Int = 0
+  var charOffset: Int = 0 {
+    didSet {
+      guard oldValue != charOffset else { return }
+      onProgress?(charOffset)
+    }
+  }
   /// Live amplitude 0...1 driving the waveform while speaking.
   var level: Double = 0
 
@@ -46,6 +59,12 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
   var elevenLabsVoice: ElevenLabsVoice?
   /// A non-blocking status used by the picker/player if cloud audio falls back.
   var cloudStatusMessage: String?
+
+  /// The app-level playback coordinator uses these lightweight hooks to keep
+  /// reading progress and system media controls in sync even without a player
+  /// view on screen.
+  var onProgress: ((Int) -> Void)?
+  var onPlaybackStateChange: ((Bool) -> Void)?
 
   private var cloudPlayer: AVAudioPlayer?
   private var cloudRequestTask: Task<Void, Never>?
@@ -750,6 +769,297 @@ final class SpeechReader: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDe
         self.tickTimer?.invalidate()
         self.tickTimer = nil
       }
+    }
+  }
+}
+
+/// Scene-root owner for audiobook playback. Keeping the engine here rather
+/// than in `PlayerView` lets spoken audio continue when the player is
+/// dismissed, the device locks, or the app moves to the background.
+@Observable
+final class AudioPlaybackCoordinator: NSObject {
+  let narrator = SpeechReader()
+
+  private var activeBook: Book?
+  private var modelContext: ModelContext?
+  private var lastPersistedOffset = -1
+  private var lastNowPlayingUpdate = Date.distantPast
+  private var wasPlayingBeforeInterruption = false
+  private var nowPlayingArtwork: MPMediaItemArtwork?
+  private var artworkTask: Task<Void, Never>?
+  private var notificationTokens: [NSObjectProtocol] = []
+  private var remoteCommandTokens: [Any] = []
+
+  override init() {
+    super.init()
+    narrator.onProgress = { [weak self] _ in self?.narrationProgressChanged() }
+    narrator.onPlaybackStateChange = { [weak self] _ in self?.playbackStateChanged() }
+    configureRemoteCommands()
+    observeAudioSession()
+  }
+
+  deinit {
+    notificationTokens.forEach(NotificationCenter.default.removeObserver)
+    artworkTask?.cancel()
+    let commandCenter = MPRemoteCommandCenter.shared()
+    remoteCommandTokens.forEach { token in
+      commandCenter.playCommand.removeTarget(token)
+      commandCenter.pauseCommand.removeTarget(token)
+      commandCenter.togglePlayPauseCommand.removeTarget(token)
+      commandCenter.skipForwardCommand.removeTarget(token)
+      commandCenter.skipBackwardCommand.removeTarget(token)
+      commandCenter.changePlaybackPositionCommand.removeTarget(token)
+    }
+  }
+
+  /// Attaches a player UI to the current book, or starts a new book session.
+  /// Re-attaching to the same book intentionally does not reload the engine:
+  /// the background reading head remains authoritative.
+  func activate(book: Book, context: ModelContext) {
+    if activeBook?.id == book.id, !narrator.fullText.isEmpty {
+      activeBook = book
+      modelContext = context
+      refreshNowPlaying(force: true)
+      return
+    }
+
+    flushProgress()
+    activeBook = nil
+    narrator.stop()
+
+    book.restoreCanonicalCharacterOffset()
+    activeBook = book
+    modelContext = context
+    lastPersistedOffset = book.canonicalCharacterOffset
+    narrator.load(text: book.bodyText, startOffset: book.canonicalCharacterOffset)
+    prepareArtwork(for: book)
+    refreshNowPlaying(force: true)
+  }
+
+  /// Persists a final checkpoint when a view goes away. Playback deliberately
+  /// stays active; only an explicit pause/stop or a system event changes it.
+  func detachPlayer() {
+    flushProgress()
+  }
+
+  func flushProgress() {
+    guard let book = activeBook else { return }
+    syncBookProgress(book, offset: narrator.charOffset, force: true)
+    refreshNowPlaying(force: true)
+  }
+
+  func seek(toPlaybackTime time: TimeInterval) {
+    let duration = estimatedDuration
+    guard duration > 0 else { return }
+    let fraction = min(1, max(0, time / duration))
+    narrator.seek(toOffset: Int(Double((narrator.fullText as NSString).length) * fraction))
+    flushProgress()
+  }
+
+  private func narrationProgressChanged() {
+    guard let book = activeBook else { return }
+    syncBookProgress(book, offset: narrator.charOffset)
+    refreshNowPlaying()
+  }
+
+  private func playbackStateChanged() {
+    refreshNowPlaying(force: true)
+  }
+
+  private func syncBookProgress(_ book: Book, offset: Int, force: Bool = false) {
+    let length = (narrator.fullText as NSString).length
+    guard length > 0 else { return }
+    guard force || abs(lastPersistedOffset - offset) >= 500 || offset >= length - 1 else { return }
+
+    book.updateCharacterOffset(offset, allowingBackward: true)
+    syncNativePosition(for: book, offset: offset, narrationLength: length)
+    book.audioPositionSeconds = Int(currentPlaybackTime)
+    book.lastOpenedDate = .now
+    lastPersistedOffset = offset
+    try? modelContext?.save()
+  }
+
+  private func syncNativePosition(for book: Book, offset: Int, narrationLength: Int) {
+    let fraction = min(1, max(0, Double(offset) / Double(narrationLength)))
+    if book.isPdf, book.pdfPageCount > 0 {
+      let pageIndex = min(book.pdfPageCount - 1, max(0, Int(fraction * Double(book.pdfPageCount))))
+      book.updatePdfPosition(
+        pageIndex: pageIndex, pageCount: book.pdfPageCount,
+        characterOffset: offset, allowingBackward: true)
+    } else if book.isEpub, book.spineCount > 0 {
+      let raw = min(Double(book.spineCount) - 0.000_001, fraction * Double(book.spineCount))
+      let index = min(book.spineCount - 1, max(0, Int(raw)))
+      book.updateEpubPosition(
+        spineIndex: index, scroll: raw - Double(index),
+        spineCount: book.spineCount, characterOffset: offset, allowingBackward: true)
+    }
+  }
+
+  private var estimatedDuration: TimeInterval {
+    let wordCount = max(1, narrator.fullText.split(whereSeparator: { $0.isWhitespace }).count)
+    let rate = max(0.5, Double(narrator.rate / AVSpeechUtteranceDefaultSpeechRate))
+    return (Double(wordCount) / 165.0 * 60.0) / rate
+  }
+
+  private var currentPlaybackTime: TimeInterval {
+    let length = max(1, (narrator.fullText as NSString).length)
+    return estimatedDuration * min(1, max(0, Double(narrator.charOffset) / Double(length)))
+  }
+
+  private func refreshNowPlaying(force: Bool = false) {
+    guard let book = activeBook, !narrator.fullText.isEmpty else {
+      MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+      return
+    }
+    guard force || Date().timeIntervalSince(lastNowPlayingUpdate) >= 0.8 else { return }
+    lastNowPlayingUpdate = .now
+
+    var info: [String: Any] = [
+      MPMediaItemPropertyTitle: book.title,
+      MPMediaItemPropertyArtist: book.author,
+      MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue,
+      MPMediaItemPropertyPlaybackDuration: estimatedDuration,
+      MPNowPlayingInfoPropertyElapsedPlaybackTime: currentPlaybackTime,
+      MPNowPlayingInfoPropertyPlaybackRate: narrator.isPlaying ? 1.0 : 0.0,
+    ]
+    if let nowPlayingArtwork { info[MPMediaItemPropertyArtwork] = nowPlayingArtwork }
+    MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+  }
+
+  private func prepareArtwork(for book: Book) {
+    artworkTask?.cancel()
+    nowPlayingArtwork = Self.fallbackArtwork(for: book)
+    guard let url = URL(string: book.coverImageURL), !book.coverImageURL.isEmpty else { return }
+    let expectedBookID = book.id
+    artworkTask = Task { [weak self] in
+      guard let data = try? await URLSession.shared.data(from: url).0,
+        !Task.isCancelled, let image = UIImage(data: data),
+        self?.activeBook?.id == expectedBookID
+      else { return }
+      self?.nowPlayingArtwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+      self?.refreshNowPlaying(force: true)
+    }
+  }
+
+  private static func fallbackArtwork(for book: Book) -> MPMediaItemArtwork {
+    let size = CGSize(width: 600, height: 600)
+    let image = UIGraphicsImageRenderer(size: size).image { context in
+      let colors = [UIColor(Color(hex: book.coverHexStart)).cgColor,
+                    UIColor(Color(hex: book.coverHexEnd)).cgColor] as CFArray
+      let gradient = CGGradient(
+        colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors,
+        locations: [0, 1])
+      context.cgContext.drawLinearGradient(
+        gradient!, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
+
+      let paragraph = NSMutableParagraphStyle()
+      paragraph.alignment = .center
+      let attributes: [NSAttributedString.Key: Any] = [
+        .font: UIFont.systemFont(ofSize: 48, weight: .bold),
+        .foregroundColor: UIColor.white,
+        .paragraphStyle: paragraph,
+      ]
+      (book.title as NSString).draw(
+        in: CGRect(x: 50, y: 210, width: 500, height: 180),
+        withAttributes: attributes)
+    }
+    return MPMediaItemArtwork(boundsSize: size) { _ in image }
+  }
+
+  private func configureRemoteCommands() {
+    let center = MPRemoteCommandCenter.shared()
+    center.playCommand.isEnabled = true
+    center.pauseCommand.isEnabled = true
+    center.togglePlayPauseCommand.isEnabled = true
+    center.skipForwardCommand.isEnabled = true
+    center.skipBackwardCommand.isEnabled = true
+    center.changePlaybackPositionCommand.isEnabled = true
+    center.skipForwardCommand.preferredIntervals = [15]
+    center.skipBackwardCommand.preferredIntervals = [15]
+
+    remoteCommandTokens = [
+      center.playCommand.addTarget { [weak self] _ in
+        guard let self, self.activeBook != nil else { return .noSuchContent }
+        self.narrator.play()
+        return .success
+      },
+      center.pauseCommand.addTarget { [weak self] _ in
+        guard let self, self.activeBook != nil else { return .noSuchContent }
+        self.narrator.pause()
+        self.flushProgress()
+        return .success
+      },
+      center.togglePlayPauseCommand.addTarget { [weak self] _ in
+        guard let self, self.activeBook != nil else { return .noSuchContent }
+        self.narrator.toggle()
+        return .success
+      },
+      center.skipForwardCommand.addTarget { [weak self] _ in
+        guard let self, self.activeBook != nil else { return .noSuchContent }
+        self.narrator.skip(1)
+        self.flushProgress()
+        return .success
+      },
+      center.skipBackwardCommand.addTarget { [weak self] _ in
+        guard let self, self.activeBook != nil else { return .noSuchContent }
+        self.narrator.skip(-1)
+        self.flushProgress()
+        return .success
+      },
+      center.changePlaybackPositionCommand.addTarget { [weak self] event in
+        guard let self, let event = event as? MPChangePlaybackPositionCommandEvent,
+          self.activeBook != nil
+        else { return .noSuchContent }
+        self.seek(toPlaybackTime: event.positionTime)
+        return .success
+      },
+    ]
+  }
+
+  private func observeAudioSession() {
+    let center = NotificationCenter.default
+    notificationTokens.append(
+      center.addObserver(
+        forName: AVAudioSession.interruptionNotification, object: AVAudioSession.sharedInstance(), queue: .main
+      ) { [weak self] notification in
+        self?.handleInterruption(notification)
+      })
+    notificationTokens.append(
+      center.addObserver(
+        forName: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance(), queue: .main
+      ) { [weak self] notification in
+        self?.handleRouteChange(notification)
+      })
+  }
+
+  private func handleInterruption(_ notification: Notification) {
+    guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let type = AVAudioSession.InterruptionType(rawValue: raw)
+    else { return }
+    switch type {
+    case .began:
+      wasPlayingBeforeInterruption = narrator.isPlaying
+      narrator.pause()
+      flushProgress()
+    case .ended:
+      let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+      let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
+      if wasPlayingBeforeInterruption && shouldResume { narrator.play() }
+      wasPlayingBeforeInterruption = false
+    @unknown default:
+      break
+    }
+  }
+
+  private func handleRouteChange(_ notification: Notification) {
+    guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+      let reason = AVAudioSession.RouteChangeReason(rawValue: raw)
+    else { return }
+    // Removing headphones is an intentional privacy boundary. Do not resume
+    // automatically when another route subsequently becomes available.
+    if reason == .oldDeviceUnavailable, narrator.isPlaying {
+      narrator.pause()
+      flushProgress()
     }
   }
 }

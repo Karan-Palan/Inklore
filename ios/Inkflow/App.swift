@@ -9,6 +9,7 @@ struct InkflowApp: App {
   /// children (notably Stats) cannot be evaluated before AuthStore is present.
   @State private var auth = AuthStore()
   @State private var router = AppRouter()
+  @State private var audioPlayback = AudioPlaybackCoordinator()
 
   init() {
     let schema = Schema([
@@ -42,6 +43,7 @@ struct InkflowApp: App {
     WindowGroup {
       ContentView()
         .environment(auth)
+        .environment(audioPlayback)
         .environment(\.appRouter, router)
         .tint(Theme.accent)
     }
