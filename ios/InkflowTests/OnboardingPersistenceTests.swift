@@ -123,6 +123,18 @@ final class OnboardingPersistenceTests: XCTestCase {
       paginator.pageIndex(for: (text as NSString).length + 10), paginator.pageCount - 1)
   }
 
+  func testBackgroundPaginatorProducesTheSamePageBoundaries() async {
+    let text = String(repeating: "Background pagination keeps the reader responsive. ", count: 1_200)
+    let font = UIFont.systemFont(ofSize: 18)
+    let size = CGSize(width: 280, height: 420)
+    let synchronous = Paginator.paginate(
+      text: text, font: font, textColor: .label, lineSpacing: 5, size: size)
+    let background = await Paginator.paginateInBackground(
+      text: text, font: font, textColor: .label, lineSpacing: 5, size: size)
+
+    XCTAssertEqual(background?.pageRanges, synchronous.pageRanges)
+  }
+
   func testNativeReaderPositionsMirrorIntoTheCanonicalTextOffset() {
     let text = String(repeating: "x", count: 1_000)
     let epub = Book(
