@@ -6,22 +6,31 @@ import UIKit
 /// momentum (starting a book, making a choice, or resuming a session).
 enum Theme {
   // MARK: Inkflow palette
-  static let ink = Color(light: 0x16342E, dark: 0xE6F0EB)  // primary text / strong elements
-  static let inkSoft = Color(light: 0x5C716B, dark: 0xA8BBB4)  // secondary text
-  static let inkFaint = Color(light: 0x8C9A95, dark: 0x82968F)  // tertiary / captions
-  static let paper = Color(light: 0xF7F8F4, dark: 0x0D1513)  // app background
-  static let surface = Color(light: 0xFFFFFF, dark: 0x17211E)  // cards / sheets
-  static let surfaceAlt = Color(light: 0xEAF0EB, dark: 0x202E2A)  // pills, wells
-  static let accent = Color(light: 0xD96745, dark: 0xE97B58)  // warm, optimistic action colour
-  static let accentDeep = Color(light: 0xAD472E, dark: 0xF09A7D)
-  static let accentSoft = Color(light: 0xF6D9CD, dark: 0x4A2A22)
+  // These are roles, not a tinted inverse palette. In particular, the dark
+  // interface uses neutral charcoal surfaces so book covers, highlights and
+  // the orange action colour retain their intended meaning.
+  static let ink = Color(light: 0x202124, dark: 0xF4F2F5)  // primary text / strong elements
+  static let inkSoft = Color(light: 0x62646B, dark: 0xC8C5CC)  // secondary text
+  static let inkFaint = Color(light: 0x898B92, dark: 0x98959E)  // tertiary / captions
+  static let paper = Color(light: 0xF8F8F9, dark: 0x121214)  // app background
+  static let surface = Color(light: 0xFFFFFF, dark: 0x1C1C20)  // elevated cards / sheets
+  static let surfaceAlt = Color(light: 0xF0F0F2, dark: 0x29292F)  // controls, wells, quiet grouping
+  static let accent = Color(light: 0xD66742, dark: 0xF08A63)  // warm, optimistic action colour
+  static let accentDeep = Color(light: 0xA8472C, dark: 0xFFB092)
+  static let accentSoft = Color(light: 0xF8E0D5, dark: 0x4D2A22)
+  static let onAccent = Color.white
+  /// A stable inverse control surface. Unlike `ink`, this role intentionally
+  /// stays dark in both appearances so floating toolbars never invert to a
+  /// white capsule with white icons.
+  static let controlStrong = Color(light: 0x202124, dark: 0x29292F)
+  static let onControlStrong = Color.white
   static let moss = Color(light: 0x2F6B5F, dark: 0x79B9A9)
   static let mossSoft = Color(light: 0xCFE4D9, dark: 0x24433B)
   static let sun = Color(light: 0xF3C95E, dark: 0xDDB54F)
   static let lilac = Color(light: 0xD8C6E9, dark: 0x473B57)
-  static let hairline = Color(light: 0xDDE6DF, dark: 0x2D3B36)
+  static let hairline = Color(light: 0xE4E4E7, dark: 0x37373D)
   static let shadow = Color(
-    light: 0x17372F, dark: 0x000000, alpha: 0.12, darkAlpha: 0.38)
+    light: 0x202124, dark: 0x000000, alpha: 0.10, darkAlpha: 0.32)
 
   // Highlight swatch colors (used in reader selection + notebook)
   static let highlightYellow = Color(light: 0xF4D67A, dark: 0xD6B84F)

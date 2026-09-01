@@ -258,10 +258,10 @@ struct LibraryView: View {
         } label: {
           Label("Find a book", systemImage: "magnifyingglass")
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(Theme.paper)
+            .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, Theme.lg)
             .padding(.vertical, Theme.sm + 5)
-            .background(Theme.ink, in: Capsule())
+            .background(Theme.accent, in: Capsule())
         }
 
         Button {
@@ -378,8 +378,8 @@ struct LibraryView: View {
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(Theme.ink, in: Capsule())
-                .foregroundStyle(Theme.paper)
+                .background(Theme.accent, in: Capsule())
+                .foregroundStyle(Theme.onAccent)
             }
             if book.hasAudio {
               Button {

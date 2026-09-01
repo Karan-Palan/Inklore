@@ -50,10 +50,10 @@ struct SelectionToolbar: View {
       .accessibilityLabel("Dismiss selection tools")
     }
     .font(.system(size: 17, weight: .semibold))
-    .foregroundStyle(.white)
+    .foregroundStyle(Theme.onControlStrong)
     .padding(.horizontal, Theme.lg)
     .padding(.vertical, Theme.md)
-    .background(Theme.ink.opacity(0.96), in: Capsule(style: .continuous))
+    .background(Theme.controlStrong.opacity(0.98), in: Capsule(style: .continuous))
     .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
     .padding(.horizontal, Theme.lg)
     .accessibilityElement(children: .contain)

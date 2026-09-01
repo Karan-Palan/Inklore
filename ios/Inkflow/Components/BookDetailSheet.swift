@@ -136,8 +136,8 @@ struct BookDetailSheet: View {
           .font(.headline)
           .frame(maxWidth: .infinity)
           .padding(.vertical, Theme.md + 1)
-          .background(Theme.ink, in: Capsule())
-          .foregroundStyle(Theme.paper)
+          .background(Theme.accent, in: Capsule())
+          .foregroundStyle(Theme.onAccent)
         }
         if book.canListen {
           Button(action: onListen) {
